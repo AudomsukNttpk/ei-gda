@@ -665,24 +665,37 @@ class DomainChooserTests(Base):
         self.assertNotIn('มีงานค้างอยู่', self.page(self.other))
         self.assertNotIn('มีงานค้างอยู่', self.page(self.committee))
 
-    def test_script_noscript_fallback_and_stepper_are_present(self):
+    def test_script_noscript_fallback_and_no_step_bar(self):
         page = self.page(self.owner)
         self.assertIn('src="/static/js/domain-chooser.js"', page)
         self.assertIn('<noscript>', page)
-        self.assertEqual(page.count('<button type="button" class="dc-step'), 3)
-        self.assertIn('aria-current="step"', page)
+        for gone in ('dc-steps', 'dc-step ', 'dc-bar', 'data-back'):
+            self.assertNotIn(gone, page)  # the choice happens on one page, there is no step bar and no back buttons
         js = open(os.path.join(self.app.static_folder, 'js', 'domain-chooser.js'), encoding='utf-8').read()
-        for needle in ('history.pushState', "'popstate'", 'location.hash', 'aria-current'):
+        for needle in ('history.pushState', "'popstate'", 'location.hash', 'aria-pressed', 'is-selected'):
             self.assertIn(needle, js)
         self.assertIn('!groups[g] && packs[g]', js)  # justice and education are both a group id and a pack slug: the group wins
 
+    def test_choices_are_toggle_buttons_that_start_unselected(self):
+        page = self.page(self.owner)
+        self.assertEqual(page.count('class="dc-tile"'), 5)
+        self.assertEqual(page.count('class="dc-opt"'), 5)  # justice 2 + education 3
+        self.assertEqual(page.count('aria-pressed="false"'), 10)
+        self.assertNotIn('aria-pressed="true"', page)
+        self.assertEqual(page.count('class="dc-check"'), 10)
+        css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
+        selected = css.split('.dc-tile.is-selected,.dc-opt.is-selected{', 1)[1].split('}', 1)[0]
+        self.assertIn('border-color:var(--accent)', selected)
+        self.assertIn('box-shadow:0 0 0 2px var(--accent)', selected)  # a ring in the group colour marks the choice
+        self.assertIn('.is-selected>.dc-check{display:grid}', css)
+
     def test_content_sits_in_one_frame_with_header_step_band_and_body(self):
         page = self.page(self.owner)
-        positions = [page.index(marker) for marker in ('class="dc-frame"', 'class="dc-head"', 'class="dc-bar"', 'class="dc-stage"')]
+        positions = [page.index(marker) for marker in ('class="dc-frame"', 'class="dc-head"', 'class="dc-stage"')]
         self.assertEqual(positions, sorted(positions))
         frame = page.split('class="dc-frame"', 1)[1]
-        for part in ('class="dc-steps"', 'class="dc-tiles"', 'data-step="3"'):
-            self.assertIn(part, frame)  # the step bar and every step are inside the frame, not on the page background
+        for part in ('class="dc-tiles"', 'data-step="2"', 'data-step="3"'):
+            self.assertIn(part, frame)  # every part of the choice is inside the frame, not on the page background
         css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
         rule = css.split('.dc-frame{', 1)[1].split('}', 1)[0]
         for declaration in ('border:var(--bw) solid var(--rule)', 'border-radius:var(--r)', 'background:var(--sheet)', 'overflow:hidden'):
@@ -693,7 +706,8 @@ class DomainChooserTests(Base):
         tile = css.split('.dc-tile{', 1)[1].split('}', 1)[0]
         self.assertIn('color-mix(in srgb,var(--accent) 6%,#fff)', tile)  # a faint tint of the group colour, not the page colour
         self.assertNotIn('background:var(--paper)', tile)
-        self.assertNotIn('border-bottom', css.split('.dc-bar{', 1)[1].split('}', 1)[0])  # no divider between the step bar and the choices
+        for gone in ('.dc-bar{', '.dc-steps{', '.dc-step{', '.dc-back{'):
+            self.assertNotIn(gone, css)
 
     def test_group_accents_are_readable_and_distinct(self):
         import colorsys
