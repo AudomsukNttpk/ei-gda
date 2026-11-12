@@ -575,9 +575,12 @@ class DomainChooserTests(Base):
         no_accent = copy.deepcopy(good)
         del no_accent['groups'][0]['accent']
         cases['needs an accent'] = no_accent
-        hidden = copy.deepcopy(good)
-        hidden['groups'][0]['hidden_org_types']['justice'] = ['JUS.ORG.NOPE']
-        cases['unknown org type'] = hidden
+        unknown_org = copy.deepcopy(good)
+        unknown_org['groups'][0]['covered_org_types']['justice']['JUS.ORG.NOPE'] = 'administrative_court'
+        cases['unknown org type'] = unknown_org
+        same_pack = copy.deepcopy(good)
+        same_pack['groups'][0]['covered_org_types']['justice']['JUS.ORG.COURT_ADMIN'] = 'justice'
+        cases['not another pack'] = same_pack
         label = copy.deepcopy(good)
         label['groups'][0]['labels_th'] = {'general': 'x'}
         cases['labels_th'] = label
@@ -608,6 +611,8 @@ class DomainChooserTests(Base):
         for slug in ('education', 'higher_education', 'ops_mhesi'):
             self.assertIn('data-domain="%s"' % slug, education)
         self.assertIn('ต่อยอดจากการศึกษา', education)  # from the pack's own "extends"
+        self.assertIn('ศาลยุติธรรม · ศาลรัฐธรรมนูญ', justice)  # titles only, and not the court that the other card already covers
+        self.assertNotIn("'jump'", page)  # org types are dicts: none of them may reach the page as raw text
         for group in ('health', 'public_administration', 'other'):
             self.assertNotIn('data-step="2" data-group="%s"' % group, page)
             self.assertIn('data-only=', page.split('data-group="%s"' % group, 1)[1].split('>', 1)[0])  # the tile goes straight to step 3
@@ -616,27 +621,105 @@ class DomainChooserTests(Base):
         page = self.page(self.owner)
         self.assertEqual(page.count('data-step="3"'), len(DOMAIN_SLUGS))
         healthcare = self.view(page, 3, 'healthcare')
-        self.assertIn('<b>17</b><span>เอกสารหลักฐาน</span>', healthcare)
-        self.assertIn('<b>13</b><span>เกณฑ์ประเมิน (สำคัญมาก 6)</span>', healthcare)
-        self.assertIn('ชุดนี้เป็นฉบับร่างนำร่อง', healthcare)
-        self.assertNotIn('ชุดนี้เป็นฉบับร่างนำร่อง', self.view(page, 3, 'education'))
+        self.assertIn('<span class="dc-n">17 รายการ</span>', healthcare)
+        self.assertIn('<span class="dc-n">13 ประเด็น</span>', healthcare)
+        self.assertIn('ประเด็นเฉพาะ', healthcare)
+        self.assertIn('(สำคัญมาก 6)', healthcare)
+        self.assertIn('ฉบับร่างนำร่อง', healthcare)
+        self.assertIn('ชุดนี้เป็นฉบับร่างนำร่อง เกณฑ์ยังรอผู้เชี่ยวชาญทบทวน', healthcare)
+        self.assertNotIn('ฉบับร่างนำร่อง', self.view(page, 3, 'education'))
         self.assertIn('องค์กรทั่วไป', self.view(page, 3, 'general'))  # label from the groups file
         self.assertNotIn('Pack)', page.split('id="dc"', 1)[1])
 
-    def test_hidden_org_type_is_not_shown_for_justice_only(self):
+    def test_check_card_has_three_closed_panels_with_the_real_details(self):
+        import re
+        from models import RegulatoryReference
         page = self.page(self.owner)
         justice = self.view(page, 3, 'justice')
-        self.assertIn('<li>ศาลยุติธรรม</li>', justice)
-        self.assertIn('<li>ศาลรัฐธรรมนูญ</li>', justice)
-        self.assertNotIn('<li>ศาลปกครอง</li>', justice)  # hidden for display; the administrative court pack covers it
-        self.assertIn('<li>ศาลปกครองสูงสุด</li>', self.view(page, 3, 'administrative_court'))
+        for kind in ('ev', 'ctl', 'reg'):
+            self.assertIn('aria-controls="p-justice-%s"' % kind, justice)
+            opening = re.search(r'<div class="dc-panel" id="p-justice-%s"[^>]*>' % kind, justice).group(0)
+            self.assertIn(' hidden', opening)  # shown only after the button is pressed
+        self.assertEqual(justice.count('class="dc-pbtn is-'), 3)
+        self.assertEqual(justice.count('aria-expanded="false"'), 3)
+        # evidence, controls (with the critical mark) and the core controls come from the pack
+        self.assertIn('ระเบียบหรือนโยบายการใช้ AI ของศาล', justice)
+        self.assertIn('การคงอำนาจวินิจฉัยและการกำกับโดยตุลาการ', justice)
+        self.assertIn('badge-s s-bad">สำคัญมาก', justice)
+        self.assertIn('ประเด็นแกนกลางที่ทุกกลุ่มใช้ร่วมกัน (8 ข้อ)', justice)
+        self.assertIn('GEN-01', justice)
+        self.assertNotIn('ประเด็นแกนกลางที่ทุกกลุ่มใช้ร่วมกัน', self.view(page, 3, 'general'))  # the core itself has no further core
+        # the numbers on the buttons match the data
+        references = [r for r in RegulatoryReference.query.filter_by(is_active=True).all() if 'justice' in json_loads(r.domains_json, default=[])]
+        counts = {kind: int(re.search(r'aria-controls="p-justice-%s">.*?<span class="dc-n">(\d+) ' % kind, justice, re.S).group(1)) for kind in ('ev', 'ctl', 'reg')}
+        self.assertEqual(counts, {'ev': 7, 'ctl': 6, 'reg': len(references)})
+        self.assertGreater(len(references), 0)
+        self.assertIn('กฎหมายและข้อกำหนด (', justice)
+        # unverified states stay unshown, as everywhere else in the product
+        for label in ('รอตรวจสอบ', 'พบจากการค้นหา ยังไม่เปิดอ่าน', 'พบแหล่งทางการ', 'ร่าง ไม่พบแหล่ง'):
+            self.assertNotIn(label, page)
 
-    def test_start_button_by_role_and_detail_link_for_everyone(self):
+    def test_panel_script_closes_others_and_resets_when_a_card_is_hidden(self):
+        js = open(os.path.join(self.app.static_folder, 'js', 'domain-chooser.js'), encoding='utf-8').read()
+        for needle in ('function togglePanel', 'function closePanels', 'closePanels(v)', "'aria-expanded'", 'is-open'):
+            self.assertIn(needle, js)
+
+    def test_org_type_covered_by_another_pack_is_a_grey_chip_that_jumps_there(self):
+        import re
+        page = self.page(self.owner)
+        justice = self.view(page, 3, 'justice')
+        self.assertIn('class="dc-chip is-for"><span class="dc-dot" aria-hidden="true"></span>ศาลยุติธรรม</span>', justice)
+        self.assertIn('ศาลรัฐธรรมนูญ</span>', justice)
+        chip = re.search(r'<button type="button" class="dc-chip is-other" data-jump="administrative_court"[^>]*>.*?</button>', justice, re.S)
+        self.assertIsNotNone(chip)  # the court the other pack covers is shown, but as a link to that pack
+        self.assertIn('ศาลปกครอง', chip.group(0))
+        self.assertIn('สีเทา = หน่วยงานที่มีชุดประเมินของตัวเอง', justice)
+        administrative = self.view(page, 3, 'administrative_court')
+        self.assertNotIn('data-jump', administrative)
+        self.assertNotIn('สีเทา =', administrative)  # the note appears only when a grey chip does
+        self.assertIn('ศาลปกครองสูงสุด', administrative)
+
+    def test_card_top_row_shows_the_group_the_draft_mark_and_the_version_to_staff_only(self):
+        import re
+        owner = self.page(self.owner)
+        self.assertNotIn('class="dc-ver"', owner)  # the people who assess do not need the pack version
+        for user in (self.admin, self.committee):
+            staff = self.page(user)
+            self.assertEqual(staff.count('class="dc-ver"'), len(DOMAIN_SLUGS), user.role)
+            self.assertRegex(staff, r'class="dc-ver"[^>]*>v\d')
+        justice = self.view(owner, 3, 'justice')
+        self.assertIn('ด้านยุติธรรม · Justice', justice)
+        self.assertEqual(justice.count('class="dc-draft"'), 0)
+        self.assertEqual(self.view(owner, 3, 'healthcare').count('class="dc-draft"'), 1)
+        general = self.view(owner, 3, 'general')
+        self.assertNotIn('ด้านด้าน', general)  # the "other" group already reads as a phrase, so it gets no "ด้าน" in front
+        self.assertIn('ด้านอื่น ๆ หรือยังไม่แน่ใจ', general)
+        self.assertEqual(re.findall(r'<h3 class="dc-name">', justice).__len__(), 1)
+
+    def test_card_has_example_work_and_audience_boxes_without_divider_lines(self):
+        owner = self.page(self.owner)
+        justice = self.view(owner, 3, 'justice')
+        self.assertIn('ตัวอย่างงานที่ประเมินได้', justice)
+        self.assertIn('เหมาะสำหรับ', justice)
+        self.assertIn('ประเภทงาน</span>', justice)
+        self.assertIn('data-jump=', owner)
+        js = open(os.path.join(self.app.static_folder, 'js', 'domain-chooser.js'), encoding='utf-8').read()
+        self.assertIn('[data-jump]', js)
+        css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
+        card = css.split('.dc-card{', 1)[1].split('.dc-panel{', 1)[0]
+        self.assertNotIn('border-top', card)  # the card is divided by space and tint, not by rules
+        self.assertNotIn('border-bottom', card)
+
+    def test_start_button_by_role_and_no_detail_button_in_the_card(self):
         owner = self.page(self.owner)
         self.assertEqual(owner.count('href="/assessments/new?domain='), len(DOMAIN_SLUGS))
         self.assertNotIn('data-notice=', owner)
+        # the card has the start button and the three panels only; the pack pages stay reachable by address and in the no-script list
+        self.assertNotIn('ดูรายละเอียดทั้งหมด', owner)
+        frame = owner.split('class="dc-frame"', 1)[1].split('<noscript>', 1)[0]
+        self.assertNotIn('href="/domains/', frame)
         for slug in DOMAIN_SLUGS:
-            self.assertIn('href="/domains/%s">ดูรายละเอียดทั้งหมด' % slug, owner)
+            self.assertIn('href="/domains/%s"' % slug, owner.split('<noscript>', 1)[1])
         for user in (self.admin, self.committee):
             page = self.page(user)
             self.assertNotIn('/assessments/new?domain=', page, user.role)
@@ -709,6 +792,18 @@ class DomainChooserTests(Base):
         for gone in ('.dc-bar{', '.dc-steps{', '.dc-step{', '.dc-back{'):
             self.assertNotIn(gone, css)
 
+    def test_page_has_no_fixed_maximum_width_so_zooming_out_leaves_no_side_bands(self):
+        css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
+        rule = css.split('.dc{', 1)[1].split('}', 1)[0]
+        self.assertNotIn('max-width', rule)
+        # the wrapper's own cap (1360px, for the other pages) is lifted for the pages that carry fluid-page: the chooser and the pack page
+        lifted = css.split('.page-content:has(> .fluid-page){', 1)[1].split('}', 1)[0]
+        self.assertIn('max-width:none', lifted)
+        self.assertIn('class="gov dc fluid-page"', self.page(self.owner))
+        self.assertIn('class="gov fluid-page"', self.page(self.owner, '/domains/justice'))
+        self.assertNotIn('fluid-page', self.page(self.owner, '/assessments'))  # other pages keep the standard maximum width
+        self.assertIn('max-width:72ch', css.split('.dc-desc p{', 1)[1].split('}', 1)[0])  # the text line length stays limited
+
     def test_group_accents_are_readable_and_distinct(self):
         import colorsys
 
@@ -734,6 +829,9 @@ class DomainChooserTests(Base):
         accents = {g['id']: g['accent'] for g in read_groups_file()['groups']}
         for group, accent in accents.items():
             self.assertGreaterEqual(contrast(accent, '#ffffff'), 4.5, group)
+            # the field chip on the check card writes the accent on a 6% tint of itself
+            tint = '#%02x%02x%02x' % tuple(round(c * 255 * 0.06 + 255 * 0.94) for c in rgb(accent))
+            self.assertGreaterEqual(contrast(accent, tint), 4.5, group + ' on its tint')
         coloured = [g for g in accents if g != 'other']  # the last group is a neutral slate on purpose
         for i, a in enumerate(coloured):
             for b in coloured[i + 1:]:

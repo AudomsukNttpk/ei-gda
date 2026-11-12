@@ -53,7 +53,7 @@ def read_groups_file():
 
 
 def validate_groups(data):
-    """Every pack is in exactly one group; hidden org types and labels refer to real things."""
+    """Every pack is in exactly one group; covered org types and labels refer to real things."""
     problems = []
     expected = set(DOMAIN_SLUGS)
     seen, ids = {}, set()
@@ -71,16 +71,18 @@ def validate_groups(data):
             if slug in seen:
                 problems.append(f'{slug} is in both {seen[slug]} and {group["id"]}')
             seen[slug] = group['id']
-        for key in ('hidden_org_types', 'labels_th'):
+        for key in ('covered_org_types', 'labels_th'):
             for slug in (group.get(key) or {}):
                 if slug not in group['subdomains']:
                     problems.append(f'group {group["id"]} sets {key} for {slug}, which is not in the group')
-        for slug, org_ids in (group.get('hidden_org_types') or {}).items():
+        for slug, covered in (group.get('covered_org_types') or {}).items():
             if slug in group['subdomains']:
                 known = {o['id'] for o in read_pack_file(slug)['organization_types']}
-                for org_id in org_ids:
+                for org_id, target in covered.items():
                     if org_id not in known:
-                        problems.append(f'group {group["id"]} hides unknown org type {org_id} of {slug}')
+                        problems.append(f'group {group["id"]} marks unknown org type {org_id} of {slug}')
+                    if target not in expected or target == slug:
+                        problems.append(f'group {group["id"]} sends org type {org_id} to {target}, which is not another pack')
     for slug in sorted(expected - set(seen)):
         problems.append(f'{slug} is not in any group')
     if problems:
@@ -93,10 +95,10 @@ def group_of(slug, data=None):
     return next((g for g in data['groups'] if slug in g['subdomains']), None)
 
 
-def hidden_org_type_ids(slug):
-    """Org type ids not shown for this pack. Display only: the pack itself is unchanged."""
+def covered_org_types(slug):
+    """Org type id -> slug of the pack that covers it. Display only: the pack itself is unchanged."""
     group = group_of(slug)
-    return set(((group or {}).get('hidden_org_types') or {}).get(slug, []))
+    return dict(((group or {}).get('covered_org_types') or {}).get(slug, {}))
 
 
 def content_hash(data):

@@ -1,7 +1,7 @@
 {
   "schema": "eigda.domain_groups/2",
   "groups_version": "2.0.0",
-  "note": "How the Domains page groups the packs for the person choosing. A group is only a way to choose; each pack keeps its slug, controls and assessments. Every pack is in exactly one group. Group accents mark identity only (card band and icon): they keep 4.5:1 contrast on white and stay at least 40 degrees apart in hue, except the neutral slate of the last group (see tests).",
+  "note": "How the Domains page groups the packs for the person choosing. covered_org_types marks an organization type that has its own pack: it stays in the list in grey and links there. A group is only a way to choose; each pack keeps its slug, controls and assessments. Every pack is in exactly one group. Group accents mark identity only (card band and icon): they keep 4.5:1 contrast on white and stay at least 40 degrees apart in hue, except the neutral slate of the last group (see tests).",
   "groups": [
     {
       "id": "justice",
@@ -12,8 +12,8 @@
       "display_order": 10,
       "examples_th": "ศาลยุติธรรม · ศาลปกครอง · ศาลรัฐธรรมนูญ",
       "subdomains": ["justice", "administrative_court"],
-      "hidden_org_types": {
-        "justice": ["JUS.ORG.COURT_ADMIN"]
+      "covered_org_types": {
+        "justice": {"JUS.ORG.COURT_ADMIN": "administrative_court"}
       }
     },
     {
