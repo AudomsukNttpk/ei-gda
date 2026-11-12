@@ -20,6 +20,10 @@
     // Same-origin state changes carry the CSRF token, including older pages that use fetch.
     (function(){var nativeFetch=window.fetch;window.fetch=function(input,init){init=init||{};var method=(init.method||'GET').toUpperCase();var url=typeof input==='string'?input:(input.url||'');if(method!=='GET'&&method!=='HEAD'&&(url.charAt(0)==='/'||url.indexOf(location.origin)===0)){var headers=new Headers(init.headers||{});headers.set('X-CSRF-Token',document.querySelector('meta[name=csrf-token]').content);init.headers=headers;}return nativeFetch(input,init);};})();
   </script>
+  <script>
+    // The sidebar state is applied before first paint so a collapsed menu does not flash open.
+    try { if (localStorage.getItem('eigda.sidebar') === 'collapsed') document.documentElement.classList.add('sidebar-collapsed'); } catch (e) {}
+  </script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -93,7 +97,7 @@
   <div class="{{ 'app-shell' if session.get('user_id') else 'auth-shell' }}">
     {% if session.get('user_id') %}
     <header class="app-topbar">
-      <button class="icon-btn sidebar-toggle" type="button" aria-label="Toggle navigation"><i class="bi bi-list"></i></button>
+      <button class="icon-btn sidebar-toggle" type="button" aria-label="ย่อเมนู" aria-controls="appSidebar" aria-expanded="true" title="ย่อเมนู"><i class="bi bi-list" aria-hidden="true"></i></button>
       <div class="topbar-title"><span class="eyebrow">{% block eyebrow %}{{ current_org or 'EI-GDA' }}{% endblock %}</span><strong>{% block page_title %}ภาพรวม{% endblock %}</strong></div>
       <form class="topbar-search" action="{{ url_for('gov.search') }}" method="get" role="search"><i class="bi bi-search" aria-hidden="true"></i><label class="visually-hidden" for="globalSearch">ค้นหาทั้งระบบ</label><input id="globalSearch" name="q" type="search" placeholder="ค้นหา Assessment, Control, กฎหมาย…" value="{{ request.args.get('q','') if request.endpoint == 'gov.search' else '' }}"></form>
       <div class="topbar-actions">

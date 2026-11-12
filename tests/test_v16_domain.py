@@ -536,6 +536,89 @@ class WizardAndUiTests(Base):
         self.assertIn('viewport', open(os.path.join(self.app.template_folder, 'base.html'), encoding='utf-8').read())
 
 
+class SidebarFoldTests(Base):
+    def test_toggle_is_an_accessible_button_wired_to_the_sidebar(self):
+        page = self.client_for(self.owner).get('/overview').get_data(as_text=True)
+        self.assertIn('id="appSidebar"', page)
+        toggle = page.split('class="icon-btn sidebar-toggle"', 1)[1].split('>', 1)[0]
+        for attribute in ('aria-controls="appSidebar"', 'aria-expanded="true"', 'aria-label="ย่อเมนู"'):
+            self.assertIn(attribute, toggle)
+        # the remembered state is applied from the head, before first paint
+        head = page.split('</head>', 1)[0]
+        self.assertIn("localStorage.getItem('eigda.sidebar')", head)
+        self.assertIn('sidebar-collapsed', head)
+
+    def test_collapsed_rail_keeps_labels_for_screen_readers_and_only_applies_on_wide_screens(self):
+        css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
+        block = css.split('sidebar can fold to an icon rail', 1)[1].split('/* name tooltip for the folded rail', 1)[0]
+        self.assertIn('@media(min-width:992px)', block)
+        self.assertIn('html.sidebar-collapsed{--sidebar:72px}', block)
+        rail = block.split('@media(min-width:992px)', 1)[1]
+        self.assertNotIn('display:none', rail)
+        self.assertNotIn('position:absolute', rail)  # labels are faded and clipped, never taken out of the layout
+        self.assertIn('opacity:0', rail)
+        self.assertNotIn('justify-content', rail)  # icons keep their alignment, so they cannot jump sideways
+        self.assertNotIn('padding-right', rail)
+        self.assertNotIn('.side-nav a{', rail)  # no change to the link box itself between the two states
+        js = open(os.path.join(self.app.static_folder, 'js', 'app.js'), encoding='utf-8').read()
+        self.assertIn("localStorage.setItem('eigda.sidebar'", js)
+        self.assertIn("matchMedia('(min-width: 992px)')", js)
+        self.assertIn("'ขยายเมนู'", js)
+        self.assertIn('eigda:layout-start', js)
+        self.assertIn("className = 'rail-tip'", js)  # an instant name tooltip for the folded rail
+        self.assertNotIn('a.title =', js)  # the slow native tooltip is not used any more
+        css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
+        rule = css.split('.rail-tip{', 1)[1].split('}', 1)[0]
+        for declaration in ('position:fixed', 'pointer-events:none', 'color:#fff', 'background:var(--navy)'):
+            self.assertIn(declaration, rule)
+        self.assertIn('eigda:layout-end', js)
+
+
+class SpacingStandardTests(Base):
+    """New UI uses the spacing, border and radius tokens from the top of v16.css instead of ad-hoc pixel values."""
+
+    def css(self):
+        return open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
+
+    def test_tokens_are_a_four_pixel_scale(self):
+        import re
+        css = self.css()
+        scale = [int(v) for v in re.findall(r'--sp-\d:(\d+)px', css.split('--bw:', 1)[0])]
+        self.assertEqual(scale, [4, 8, 12, 16, 24, 32, 48])
+        self.assertTrue(all(v % 4 == 0 for v in scale))
+        for token in ('--bw:1px', '--r:12px', '--r-sm:8px', '--r-xs:4px', '--r-pill:999px', '--topbar-h:72px', '--touch:44px'):
+            self.assertIn(token, css)
+
+    def test_sidebar_fold_uses_tokens_for_space_and_radius(self):
+        import re
+        css = self.css()
+        # the sidebar fold block and its tooltip; older styles are not covered yet
+        region = css[css.index('/* ---------- sidebar can fold'):css.index('/* ---------- top bar')]
+        violations = []
+        for selector, body in re.findall(r'([^{}]+)\{([^{}]*)\}', region):
+            if '::before' in selector and 'rail-tip' in selector:  # tooltip arrow geometry
+                continue
+            for prop, value in re.findall(r'(?<![\w-])((?:padding|margin)(?:-[a-z]+)?|gap|row-gap|column-gap|border-radius):([^;]+)', body):
+                raw = [m for m in re.findall(r'(?<![\w.-])(\d+(?:\.\d+)?)px', value) if m != '0']
+                if raw:
+                    violations.append((selector.strip(), prop, value.strip()))
+        self.assertEqual(violations, [])
+
+    def test_topbar_and_page_padding_line_up(self):
+        css = self.css()
+        self.assertIn('.app-topbar{height:var(--topbar-h);min-height:var(--topbar-h)', css)
+        self.assertIn('padding:0 var(--sp-6)', css.split('.app-topbar{', 1)[1].split('}', 1)[0])  # same side padding as the page
+        self.assertIn('.page-content{padding:var(--sp-5) var(--sp-6) var(--sp-7)', css)
+
+    def test_rail_icons_sit_at_the_centre_of_the_rail(self):
+        css = self.css()
+        # 12px sidebar padding + 12px link padding + half of the 24px icon box = 36px = half of the 72px rail
+        self.assertIn('padding:var(--sp-4) var(--sp-3) var(--sp-3)', css.split('.app-sidebar{', 1)[1].split('}', 1)[0])
+        self.assertIn('padding:var(--sp-2) var(--sp-3)', css.split('.side-nav a,.logout-link{', 1)[1].split('}', 1)[0])
+        self.assertIn('width:24px', css.split('.side-nav a i,.logout-link i{', 1)[1].split('}', 1)[0])
+        self.assertIn('html.sidebar-collapsed{--sidebar:72px}', css)
+
+
 class SecurityTests(Base):
     def test_csrf_blocks_post_without_token_when_enforced(self):
         self.app.config['CSRF_ENFORCE_IN_TESTS'] = True

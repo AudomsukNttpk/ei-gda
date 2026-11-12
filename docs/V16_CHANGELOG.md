@@ -1,5 +1,11 @@
 # V16 changelog
 
+## Unreleased
+
+### Added
+- Collapsible sidebar. On screens 992px and wider, the menu button in the top bar folds the sidebar to a 72px icon rail and back. The choice is remembered in the browser (`localStorage` key `eigda.sidebar`) and applied from the page head before first paint, so a folded menu does not flash open. The motion keeps icons still (the rail width puts them at the centre already, and no padding or alignment changes between the two states) and fades labels while the sidebar clips them so they never wrap or pop. Menu labels stay in the page for screen readers. On the folded rail, hovering or keyboard-focusing an icon shows its name at once in a dark label beside it (one floating element made by `app.js`, so the sidebar's clipping cannot cut it). The button reports `aria-expanded`. On narrower screens the menu is still the slide-in drawer and the saved choice is ignored. `app.js` sends `eigda:layout-start` and `eigda:layout-end` around the width change, for pages that need to re-align after it.
+- Spacing, border and radius standard (see `docs/V16_UI_SPACING.md`): a 4px-based scale (`--sp-1` to `--sp-7`), one border width, three radii and fixed sizes as tokens at the top of `v16.css`, applied to the app shell and the sidebar. Visible effects: top bar 72px high with the same side padding as the page (it was 28 against 32), page padding 24 / 32 / 48 (was 28 / 32 / 64), 40px logo, 24px menu icons. A test fails when the covered CSS uses a raw pixel value for padding, margin, gap or radius.
+
 ## 16.0-beta.1 (2026-11-05)
 
 ### Added
