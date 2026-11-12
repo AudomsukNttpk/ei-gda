@@ -27,5 +27,5 @@ Defined at the top of `static/css/v16.css`. New UI uses these tokens; it does no
 
 ## Covered and not covered
 
-Covered: the app shell (top bar, page padding, sidebar), the sidebar fold and its tooltip.
-Not covered yet: everything else in `v16.css` and `app.css` (panels, tables, wizard, taxonomy, dashboard, the Domain pages, the contents of the top bar such as the search box and user chip). They keep their old values until they are migrated; the test does not look at them. New pages should be written with the tokens from the start.
+Covered: the app shell (top bar, page padding, sidebar), the sidebar fold and its tooltip, and the `/domains` chooser (`.dc-*` in `v16.css`).
+Not covered yet: everything else in `v16.css` and `app.css` (panels, tables, wizard, taxonomy, dashboard, the pack detail pages, the contents of the top bar such as the search box and user chip). They keep their old values until they are migrated; the test does not look at them. New pages should be written with the tokens from the start.

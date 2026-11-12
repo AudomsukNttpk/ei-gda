@@ -536,6 +536,198 @@ class WizardAndUiTests(Base):
         self.assertIn('viewport', open(os.path.join(self.app.template_folder, 'base.html'), encoding='utf-8').read())
 
 
+class DomainChooserTests(Base):
+    TILES = ('justice', 'education', 'health', 'public_administration', 'other')
+
+    def page(self, user, path='/domains'):
+        response = self.client_for(user).get(path)
+        self.assertEqual(response.status_code, 200, path)
+        return response.get_data(as_text=True)
+
+    def view(self, page, step, key=None):
+        import re
+        attribute = {'2': 'data-group', '3': 'data-domain'}.get(str(step))
+        pattern = r'<section class="dc-view" data-step="%s"[^>]*%s.*?</section>' % (step, ('%s="%s"' % (attribute, key)) if key else '')
+        found = re.search(pattern, page, re.S)
+        self.assertIsNotNone(found, (step, key))
+        return found.group(0)
+
+    def test_every_pack_is_in_exactly_one_group_and_bad_files_are_refused(self):
+        import copy
+        from services.domain_catalog import read_groups_file, validate_groups
+        good = read_groups_file()
+        validate_groups(good)
+        members = [slug for g in good['groups'] for slug in g['subdomains']]
+        self.assertEqual(sorted(members), sorted(DOMAIN_SLUGS))
+        cases = {}
+        missing = copy.deepcopy(good)
+        missing['groups'][1]['subdomains'].remove('ops_mhesi')
+        cases['not in any group'] = missing
+        twice = copy.deepcopy(good)
+        twice['groups'][0]['subdomains'].append('education')
+        cases['both'] = twice
+        unknown = copy.deepcopy(good)
+        unknown['groups'][0]['subdomains'].append('nope')
+        cases['unknown pack'] = unknown
+        bad_id = copy.deepcopy(good)
+        bad_id['groups'][0]['id'] = 'Justice Sector'
+        cases['must be lowercase'] = bad_id
+        no_accent = copy.deepcopy(good)
+        del no_accent['groups'][0]['accent']
+        cases['needs an accent'] = no_accent
+        hidden = copy.deepcopy(good)
+        hidden['groups'][0]['hidden_org_types']['justice'] = ['JUS.ORG.NOPE']
+        cases['unknown org type'] = hidden
+        label = copy.deepcopy(good)
+        label['groups'][0]['labels_th'] = {'general': 'x'}
+        cases['labels_th'] = label
+        for fragment, data in cases.items():
+            with self.assertRaises(ValueError, msg=fragment) as ctx:
+                validate_groups(data)
+            self.assertIn(fragment, str(ctx.exception))
+
+    def test_step_one_shows_five_tiles_and_only_step_one_is_visible_at_first(self):
+        for user in (self.owner, self.admin, self.committee):
+            page = self.page(user)
+            for group in self.TILES:
+                self.assertIn('data-group="%s"' % group, page, (user.role, group))
+            self.assertEqual(page.count('<button type="button" class="dc-tile'), 5)
+            self.assertIn('class="dc-tiles" style="--n:5"', page)  # tiles share the width of the page evenly
+            self.assertNotIn('<section class="dc-view" data-step="1" aria-labelledby="dcq1" hidden', page)
+            for step in (2, 3):
+                for chunk in page.split('<section class="dc-view" data-step="%d"' % step)[1:]:
+                    self.assertIn(' hidden', chunk.split('>', 1)[0])  # every later step starts hidden
+
+    def test_step_two_exists_only_for_groups_with_several_packs(self):
+        page = self.page(self.owner)
+        self.assertEqual(page.count('data-step="2"'), 2)
+        justice = self.view(page, 2, 'justice')
+        self.assertIn('data-domain="justice"', justice)
+        self.assertIn('data-domain="administrative_court"', justice)
+        education = self.view(page, 2, 'education')
+        for slug in ('education', 'higher_education', 'ops_mhesi'):
+            self.assertIn('data-domain="%s"' % slug, education)
+        self.assertIn('ต่อยอดจากการศึกษา', education)  # from the pack's own "extends"
+        for group in ('health', 'public_administration', 'other'):
+            self.assertNotIn('data-step="2" data-group="%s"' % group, page)
+            self.assertIn('data-only=', page.split('data-group="%s"' % group, 1)[1].split('>', 1)[0])  # the tile goes straight to step 3
+
+    def test_every_pack_has_a_check_card_with_real_numbers(self):
+        page = self.page(self.owner)
+        self.assertEqual(page.count('data-step="3"'), len(DOMAIN_SLUGS))
+        healthcare = self.view(page, 3, 'healthcare')
+        self.assertIn('<b>17</b><span>เอกสารหลักฐาน</span>', healthcare)
+        self.assertIn('<b>13</b><span>เกณฑ์ประเมิน (สำคัญมาก 6)</span>', healthcare)
+        self.assertIn('ชุดนี้เป็นฉบับร่างนำร่อง', healthcare)
+        self.assertNotIn('ชุดนี้เป็นฉบับร่างนำร่อง', self.view(page, 3, 'education'))
+        self.assertIn('องค์กรทั่วไป', self.view(page, 3, 'general'))  # label from the groups file
+        self.assertNotIn('Pack)', page.split('id="dc"', 1)[1])
+
+    def test_hidden_org_type_is_not_shown_for_justice_only(self):
+        page = self.page(self.owner)
+        justice = self.view(page, 3, 'justice')
+        self.assertIn('<li>ศาลยุติธรรม</li>', justice)
+        self.assertIn('<li>ศาลรัฐธรรมนูญ</li>', justice)
+        self.assertNotIn('<li>ศาลปกครอง</li>', justice)  # hidden for display; the administrative court pack covers it
+        self.assertIn('<li>ศาลปกครองสูงสุด</li>', self.view(page, 3, 'administrative_court'))
+
+    def test_start_button_by_role_and_detail_link_for_everyone(self):
+        owner = self.page(self.owner)
+        self.assertEqual(owner.count('href="/assessments/new?domain='), len(DOMAIN_SLUGS))
+        self.assertNotIn('data-notice=', owner)
+        for slug in DOMAIN_SLUGS:
+            self.assertIn('href="/domains/%s">ดูรายละเอียดทั้งหมด' % slug, owner)
+        for user in (self.admin, self.committee):
+            page = self.page(user)
+            self.assertNotIn('/assessments/new?domain=', page, user.role)
+            self.assertEqual(page.count('data-notice="notice-'), len(DOMAIN_SLUGS))
+            self.assertIn('การเริ่มประเมินทำได้เฉพาะบัญชีผู้ใช้งานที่ประเมินระบบ AI', page)
+
+    def test_disabled_pack_leaves_its_choice_and_a_single_pack_group_skips_step_two(self):
+        with patch.dict(os.environ, {'EIGDA_DISABLED_DOMAINS': 'administrative_court'}):
+            sync_catalog(db.session)
+            db.session.commit()
+            page = self.page(self.owner)
+            self.assertNotIn('administrative_court', page)
+            self.assertNotIn('data-step="2" data-group="justice"', page)
+            self.assertIn('data-only="justice"', page.split('data-group="justice"', 1)[1].split('>', 1)[0])
+        sync_catalog(db.session)
+        db.session.commit()
+        self.assertIn('data-domain="administrative_court"', self.page(self.owner))
+
+    def test_unfinished_work_is_offered_to_its_owner_only(self):
+        draft = self.assessment(slug='healthcare', frozen=False)
+        page = self.page(self.owner)
+        self.assertIn('มีงานค้างอยู่', page)
+        self.assertIn('href="/assessments/%d"' % draft.id, page)
+        self.assertIn('สุขภาพและการแพทย์ฉุกเฉิน', page.split('มีงานค้างอยู่', 1)[1].split('</div>', 1)[0])
+        self.assertIn('ขั้นที่ 4 จาก 7', page)
+        self.assertNotIn('มีงานค้างอยู่', self.page(self.other))
+        self.assertNotIn('มีงานค้างอยู่', self.page(self.committee))
+
+    def test_script_noscript_fallback_and_stepper_are_present(self):
+        page = self.page(self.owner)
+        self.assertIn('src="/static/js/domain-chooser.js"', page)
+        self.assertIn('<noscript>', page)
+        self.assertEqual(page.count('<button type="button" class="dc-step'), 3)
+        self.assertIn('aria-current="step"', page)
+        js = open(os.path.join(self.app.static_folder, 'js', 'domain-chooser.js'), encoding='utf-8').read()
+        for needle in ('history.pushState', "'popstate'", 'location.hash', 'aria-current'):
+            self.assertIn(needle, js)
+        self.assertIn('!groups[g] && packs[g]', js)  # justice and education are both a group id and a pack slug: the group wins
+
+    def test_content_sits_in_one_frame_with_header_step_band_and_body(self):
+        page = self.page(self.owner)
+        positions = [page.index(marker) for marker in ('class="dc-frame"', 'class="dc-head"', 'class="dc-bar"', 'class="dc-stage"')]
+        self.assertEqual(positions, sorted(positions))
+        frame = page.split('class="dc-frame"', 1)[1]
+        for part in ('class="dc-steps"', 'class="dc-tiles"', 'data-step="3"'):
+            self.assertIn(part, frame)  # the step bar and every step are inside the frame, not on the page background
+        css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
+        rule = css.split('.dc-frame{', 1)[1].split('}', 1)[0]
+        for declaration in ('border:var(--bw) solid var(--rule)', 'border-radius:var(--r)', 'background:var(--sheet)', 'overflow:hidden'):
+            self.assertIn(declaration, rule)
+        # the frame and its body never use the page colour (--paper); the cards inside use it, so they stand out from the white frame
+        self.assertNotIn('background:var(--paper)', rule)
+        self.assertNotIn('background:var(--paper)', css.split('.dc-stage{', 1)[1].split('}', 1)[0])
+        tile = css.split('.dc-tile{', 1)[1].split('}', 1)[0]
+        self.assertIn('color-mix(in srgb,var(--accent) 6%,#fff)', tile)  # a faint tint of the group colour, not the page colour
+        self.assertNotIn('background:var(--paper)', tile)
+        self.assertNotIn('border-bottom', css.split('.dc-bar{', 1)[1].split('}', 1)[0])  # no divider between the step bar and the choices
+
+    def test_group_accents_are_readable_and_distinct(self):
+        import colorsys
+
+        def rgb(h):
+            return [int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+
+        def luminance(h):
+            r, g, b = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb(h)]
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+        def contrast(a, b):
+            hi, lo = sorted((luminance(a), luminance(b)), reverse=True)
+            return (hi + 0.05) / (lo + 0.05)
+
+        def hue(h):
+            return colorsys.rgb_to_hsv(*rgb(h))[0] * 360
+
+        def gap(a, b):
+            d = abs(hue(a) - hue(b)) % 360
+            return min(d, 360 - d)
+
+        from services.domain_catalog import read_groups_file
+        accents = {g['id']: g['accent'] for g in read_groups_file()['groups']}
+        for group, accent in accents.items():
+            self.assertGreaterEqual(contrast(accent, '#ffffff'), 4.5, group)
+        coloured = [g for g in accents if g != 'other']  # the last group is a neutral slate on purpose
+        for i, a in enumerate(coloured):
+            for b in coloured[i + 1:]:
+                self.assertGreaterEqual(gap(accents[a], accents[b]), 40, (a, b))
+            for meaning, colour in {'primary action': '#0b6357', 'draft': '#7a4a00', 'critical': '#9e1b14'}.items():
+                self.assertGreaterEqual(gap(accents[a], colour), 30, (a, meaning))
+
+
 class SidebarFoldTests(Base):
     def test_toggle_is_an_accessible_button_wired_to_the_sidebar(self):
         page = self.client_for(self.owner).get('/overview').get_data(as_text=True)
@@ -589,11 +781,11 @@ class SpacingStandardTests(Base):
         for token in ('--bw:1px', '--r:12px', '--r-sm:8px', '--r-xs:4px', '--r-pill:999px', '--topbar-h:72px', '--touch:44px'):
             self.assertIn(token, css)
 
-    def test_sidebar_fold_uses_tokens_for_space_and_radius(self):
+    def test_new_styles_use_tokens_for_space_and_radius(self):
         import re
         css = self.css()
-        # the sidebar fold block and its tooltip; older styles are not covered yet
-        region = css[css.index('/* ---------- sidebar can fold'):css.index('/* ---------- top bar')]
+        # the sidebar fold block, its tooltip and the domains chooser; older styles are not covered yet
+        region = css[css.index('/* ---------- sidebar can fold'):css.index('/* ---------- top bar')] + css[css.index('/* domains chooser'):]
         violations = []
         for selector, body in re.findall(r'([^{}]+)\{([^{}]*)\}', region):
             if '::before' in selector and 'rail-tip' in selector:  # tooltip arrow geometry
