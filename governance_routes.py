@@ -3,6 +3,7 @@ import csv
 import hashlib
 import io
 import os
+import re
 import uuid
 from datetime import datetime
 
@@ -12,7 +13,7 @@ from extensions import db
 from models import (ApplicabilityDecision, AuditLog, CommitteeAssignment, DocumentCheck, DocumentFile, DomainAssessment, DomainControl,
                     DomainFinding, EvidenceMapping, EvidenceRequirement, RegulatoryReference, Standard, TaxonomyNode, Template, User)
 from services.applicability import IMPACT_ORDER, category_sensitivity
-from services.domain_catalog import CORE_SUITES, get_pack, list_profiles, taxonomy_payload
+from services.domain_catalog import CORE_SUITES, covered_org_types, get_pack, layer_packs, list_groups, list_profiles, taxonomy_payload
 from services.domain_kg import build_assessment_graph, finding_trace
 from services.domain_orchestrator import (current_config, decisions_for, ensure_check, freeze, locate_requirements, mappings_by_requirement, recalculate,
                                           refresh_evidence_mappings, run_assessment)
@@ -144,10 +145,63 @@ def overview():
     return render_template('gov/overview.html', stats=overview_stats(), cards=domain_cards(), recent=recent, resume=resume)
 
 
+def display_name_th(title_th):
+    """Thai name for people: drops a trailing "(... Pack)" label that only matters to administrators."""
+    return re.sub(r'\s*\([^)]*Pack\)\s*$', '', title_th or '').strip()
+
+
+def domain_chooser():
+    """Data for the /domains chooser: groups and, in each, the packs a person can start an assessment from.
+
+    Everything shown in the three steps comes from here, so the template only lays it out."""
+    groups = list_groups(db.session)
+    labels = {slug: label for g in groups for slug, label in (g.get('labels_th') or {}).items()}
+    names = {p.slug: labels.get(p.slug) or display_name_th(p.title_th) for g in groups for p in g['profiles']}
+    references = {}
+    for ref in RegulatoryReference.query.filter_by(is_active=True).all():
+        for slug in json_loads(ref.domains_json, default=[]):
+            references.setdefault(slug, []).append(ref)
+    general = get_pack(db.session, 'general') or {}
+    binding = ('binding_legislation', 'mandated_standard', 'internal_policy')
+    out = []
+    for group in groups:
+        subs = []
+        for profile in group['profiles']:
+            pack = json_loads(profile.payload_json, default={})
+            covered = covered_org_types(profile.slug)
+            own = DomainControl.query.filter_by(domain_slug=profile.slug, is_active=True)
+            base = pack.get('extends')
+            core = [] if profile.slug == 'general' else [c for layer in layer_packs(db.session, pack) for c in layer['controls']] + general.get('controls', [])
+            rows = sorted(references.get(profile.slug, []), key=lambda r: (r.normative_class, r.source_id))
+            subs.append({'evidence': [{'title_th': e['title_th'], 'why_th': e.get('why_th')} for e in pack.get('evidence_requirements', [])],
+                         'controls': [{'id': c['id'], 'title_th': c['title_th'], 'objective_th': c.get('objective_th'), 'critical': bool(c.get('critical')), 'suites': c.get('suites', [])} for c in pack.get('controls', [])],
+                         'core_controls': [{'id': c['id'], 'title_th': c['title_th'], 'critical': bool(c.get('critical'))} for c in core],
+                         'references': [{'title': r.title_th or r.title, 'url': r.official_url, 'condition': r.condition_th, 'status': r.verification_status,
+                                         'binding': r.normative_class in binding} for r in rows],'slug': profile.slug, 'title': profile.title, 'name_th': names[profile.slug], 'summary_th': pack.get('summary_th'),
+                         'org_types': [{'title': o['title_th'], 'jump': covered.get(o['id']) if covered.get(o['id']) in names else None} for o in pack.get('organization_types', [])],
+                         'version': pack.get('pack_version'),
+                         'use_cases': [u['title_th'] for u in pack.get('use_cases', [])],
+                         'evidence_count': len(pack.get('evidence_requirements', [])), 'control_count': own.count(),
+                         'critical_count': own.filter_by(critical=True).count(), 'provisional': bool(pack.get('provisional_note_th')),
+                         'extends_name': names.get(base) if base else None})
+        out.append({'id': group['id'], 'title': group['title'], 'title_th': group['title_th'], 'icon': group['icon'], 'accent': group['accent'],
+                    'examples_th': group['examples_th'], 'subs': subs})
+    return out, names
+
+
+def resume_candidate():
+    """The person's most recent unfinished assessment, if they may still edit it."""
+    recent = assessments_query().order_by(DomainAssessment.updated_at.desc()).limit(5).all()
+    return next((a for a in recent if a.status in ('draft', 'configured') and is_owner(a)), None)
+
+
 @bp.route('/domains')
 @login_required()
 def domains():
-    return render_template('gov/domains.html', cards=domain_cards())
+    groups, names = domain_chooser()
+    resume = resume_candidate()
+    return render_template('gov/domains.html', groups=groups, resume=resume, resume_domain=names.get(resume.domain_slug, resume.domain_slug) if resume else None,
+                           steps_total=len(STEPS))
 
 
 @bp.route('/domains/<slug>')
