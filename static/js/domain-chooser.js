@@ -74,15 +74,27 @@
     if (open) panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
   }
 
+  // Organization type on the check card: pick one (press again to clear) and the start link carries it as ?org_type=,
+  // so the assessment page opens with it already filled in. With none picked the link is the plain one.
+  function pickOrg(chip) {
+    var card = chip.closest('.dc-view');
+    var on = chip.getAttribute('aria-pressed') !== 'true';
+    card.querySelectorAll('[data-org]').forEach(function (c) { c.setAttribute('aria-pressed', c === chip && on ? 'true' : 'false'); });
+    var cta = card.querySelector('.dc-cta[data-base]');
+    if (cta) cta.setAttribute('href', cta.dataset.base + (on ? '&org_type=' + encodeURIComponent(chip.dataset.org) : ''));
+  }
+
   function nav(hash) {
     history.pushState(null, '', location.pathname + location.search + (hash ? '#' + hash : ''));
     render(true);
   }
 
   root.addEventListener('click', function (e) {
-    var t = e.target.closest('.dc-tile, .dc-opt, .dc-pbtn, [data-jump], [data-notice]');
+    var t = e.target.closest('.dc-tile, .dc-opt, .dc-pbtn, [data-jump], [data-notice], [data-org]');
     if (!t) return;
-    if (t.matches('.dc-tile')) {
+    if (t.matches('[data-org]')) {
+      pickOrg(t);
+    } else if (t.matches('.dc-tile')) {
       nav(t.dataset.only ? t.dataset.group + '/' + t.dataset.only : t.dataset.group);
     } else if (t.matches('.dc-opt')) {
       nav(parse().group + '/' + t.dataset.domain);

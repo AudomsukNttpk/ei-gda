@@ -26,7 +26,17 @@ from services.pdf_service import extract_pages_from_pdf
 from utils import json_dumps, json_loads, login_required
 
 bp = Blueprint('gov', __name__)
-STEPS = [(1, 'องค์กรและ Domain'), (2, 'AI Use Case'), (3, 'กฎหมายและมาตรฐาน'), (4, 'Test Suite และ Control'), (5, 'หลักฐาน'), (6, 'ประเมินด้วย AI'), (7, 'ผลและรายงาน')]
+# Step numbers are stored (DomainAssessment.current_step) and appear in URLs, so they keep their original values. Laws/standards and
+# Test Suites were merged into one page; that page is step 3 and /step/4 redirects to it, so there is no 4 in this list.
+# People see the position in the list (step_label), not the stored number.
+STEPS = [(1, 'องค์กรและ Domain'), (2, 'AI Use Case'), (3, 'Test Suite และที่มา'), (5, 'หลักฐาน'), (6, 'ประเมินด้วย AI'), (7, 'ผลและรายงาน')]
+
+
+@bp.app_template_global()
+def step_label(number):
+    """Number shown to people for a stored step number (4 no longer exists, later steps move up by one)."""
+    number = number or 1
+    return number if number <= 3 else (3 if number == 4 else number - 1)
 IMPACT_LABELS = {'information': 'ให้ข้อมูลเท่านั้น', 'assistive': 'ช่วยงาน มนุษย์ตัดสินใจ', 'significant': 'มีผลต่อสิทธิหรือการตัดสินใจสำคัญ', 'safety_critical': 'มีผลต่อความปลอดภัยของชีวิต'}
 LIFECYCLE = ['วางแผนและออกแบบ', 'พัฒนาและทดสอบ', 'นำร่อง', 'ใช้งานจริง', 'ปรับปรุงหรือยกเลิก']
 STATUS_LABELS = {'draft': 'ฉบับร่าง', 'configured': 'กำลังดำเนินการ', 'pending_review': 'รอผู้ตรวจ', 'completed': 'เสร็จสิ้น'}
@@ -178,7 +188,7 @@ def domain_chooser():
                          'core_controls': [{'id': c['id'], 'title_th': c['title_th'], 'critical': bool(c.get('critical'))} for c in core],
                          'references': [{'title': r.title_th or r.title, 'url': r.official_url, 'condition': r.condition_th, 'status': r.verification_status,
                                          'binding': r.normative_class in binding} for r in rows],'slug': profile.slug, 'title': profile.title, 'name_th': names[profile.slug], 'summary_th': pack.get('summary_th'),
-                         'org_types': [{'title': o['title_th'], 'jump': covered.get(o['id']) if covered.get(o['id']) in names else None} for o in pack.get('organization_types', [])],
+                         'org_types': [{'id': o['id'], 'title': o['title_th'], 'jump': covered.get(o['id']) if covered.get(o['id']) in names else None} for o in pack.get('organization_types', [])],
                          'version': pack.get('pack_version'),
                          'use_cases': [u['title_th'] for u in pack.get('use_cases', [])],
                          'evidence_count': len(pack.get('evidence_requirements', [])), 'control_count': own.count(),
@@ -268,13 +278,23 @@ def assessments():
                            perms={a.id: ap.assessment_permissions(a) for a in rows}, wf_labels=wf.STATUS_LABELS)
 
 
-def _validate_step1(form):
+def _pickable_org_types(slug, pack, domain_slugs):
+    """Organization types to offer for a new assessment in this Domain.
+
+    A type that has its own pack (e.g. ศาลปกครอง inside justice) is left out, matching the /domains chooser, which sends those
+    people to that pack. Assessments created earlier keep their stored type; only the picker for a new one is narrowed."""
+    own = {org_id for org_id, target in covered_org_types(slug).items() if target in domain_slugs}
+    return [o for o in (pack or {}).get('organization_types', []) if o['id'] not in own]
+
+
+def _validate_step1(form, new=False):
     slug = form.get('domain_slug', '').strip()
     pack = get_pack(db.session, slug)
     if pack is None:
         return None, 'กรุณาเลือก Domain'
     org_type = form.get('org_type', '').strip()
-    if org_type not in {o['id'] for o in pack['organization_types']}:
+    allowed = _pickable_org_types(slug, pack, {p.slug for p in list_profiles(db.session)}) if new else pack['organization_types']
+    if org_type not in {o['id'] for o in allowed}:
         return None, 'กรุณาเลือกประเภทองค์กร'
     org = form.get('organization_name', '').strip()[:255]
     name = form.get('name', '').strip()[:255]
@@ -287,7 +307,7 @@ def _validate_step1(form):
 @login_required(role='user')
 def assessment_new():
     if request.method == 'POST':
-        data, error = _validate_step1(request.form)
+        data, error = _validate_step1(request.form, new=True)
         if error:
             flash(error, 'warning')
             return redirect(url_for('gov.assessment_new', domain=request.form.get('domain_slug', '')))
@@ -304,8 +324,18 @@ def assessment_new():
     user = db.session.get(User, session['user_id'])
     profiles = list_profiles(db.session)
     packs = {p.slug: json_loads(p.payload_json, default={}) for p in profiles}
-    return render_template('gov/wizard.html', assessment=None, number=1, steps=STEPS, profiles=profiles, org_type_map={k: v.get('organization_types', []) for k, v in packs.items()}, profile={},
-                           selected=request.args.get('domain', ''), default_org=user.organization if user else '', editable=True)
+    pickable = {slug: _pickable_org_types(slug, pack, set(packs)) for slug, pack in packs.items()}
+    selected = request.args.get('domain', '')
+    wanted_org = request.args.get('org_type', '')
+    # Arriving from a Domain card (?domain=<slug>) carries the choice with it: show it locked instead of asking again.
+    # The sidebar link has no ?domain=, and an unknown slug falls back to the normal chooser.
+    locked_domain = next((p for p in profiles if p.slug == selected), None)
+    # The Domain card can also carry the organization type (?org_type=<id>); it is honoured only when it belongs to that Domain.
+    # If only one type is left for the Domain there is nothing to ask, so it is filled in too.
+    options = pickable.get(selected, []) if locked_domain else []
+    locked_org = next((o for o in options if o['id'] == wanted_org), None) or (options[0] if len(options) == 1 else None)
+    return render_template('gov/wizard.html', assessment=None, number=1, steps=STEPS, profiles=profiles, org_type_map=pickable, profile={},
+                           selected=selected, locked_domain=locked_domain, domain_profile=locked_domain, locked_org=locked_org, default_org=user.organization if user else '', editable=True)
 
 
 def _step_context(assessment, number):
@@ -315,14 +345,21 @@ def _step_context(assessment, number):
                'editable': is_owner(assessment) and wf.org_can_modify(assessment) and not assessment.config_snapshot_json,
                'editable_evidence': is_owner(assessment) and wf.org_can_modify(assessment), 'wf_labels': wf.STATUS_LABELS,
                'disclosure_labels': DISCLOSURE_LABELS, 'personal_labels': PERSONAL_LABELS, 'supported_classes': current_app.config.get('SUPPORTED_DISCLOSURE_CLASSES', ()),
-               'is_owner': is_owner(assessment), 'can_review': can_review(assessment), 'status_labels': STATUS_LABELS}
+               'is_owner': is_owner(assessment), 'can_review': can_review(assessment), 'status_labels': STATUS_LABELS,
+               'domain_profile': next((p for p in list_profiles(db.session) if p.slug == assessment.domain_slug), None)}
     if number == 1:
         profiles = list_profiles(db.session)
         context.update(profiles=profiles, org_type_map={p.slug: json_loads(p.payload_json, default={}).get('organization_types', []) for p in profiles}, selected=assessment.domain_slug, default_org=assessment.organization_name)
     if number == 2:
         context.update(impact_labels=IMPACT_LABELS, impact_order=IMPACT_ORDER, lifecycle=LIFECYCLE)
-    if number in (3, 4, 5, 6):
+    if number in (3, 5, 6):
         context['config'] = current_config(assessment)
+    if number == 3:
+        # Where each Test Suite comes from: the laws and standards behind its controls, in first-seen order.
+        config = context['config']
+        by_control = {c['id']: c for c in config['controls']}
+        context['ref_by_id'] = {r['source_id']: r for r in config['references']}
+        context['suite_sources'] = {s['code']: list(dict.fromkeys(ref for cid in s['control_ids'] for ref in by_control.get(cid, {}).get('references', []))) for s in config['suites']}
     if number == 5:
         check = db.session.get(DocumentCheck, assessment.check_id) if assessment.check_id else None
         files = DocumentFile.query.filter_by(check_id=check.id).order_by(DocumentFile.id).all() if check else []
@@ -379,7 +416,9 @@ def step(assessment_id, number):
     assessment = get_assessment_or_403(assessment_id)
     if number == 7:
         return redirect(url_for('gov.results', assessment_id=assessment.id))
-    if number not in (1, 2, 3, 4, 5, 6):
+    if number == 4:  # merged into step 3
+        return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
+    if number not in (1, 2, 3, 5, 6):
         abort(404)
     profile = json_loads(assessment.profile_json, default={})
     if number >= 3 and not profile.get('data_categories'):
@@ -387,7 +426,7 @@ def step(assessment_id, number):
         return redirect(url_for('gov.step', assessment_id=assessment.id, number=2))
     if number >= 5 and not assessment.config_snapshot_json:
         flash('กรุณายืนยันขอบเขต Control ก่อนแนบหลักฐาน', 'warning')
-        return redirect(url_for('gov.step', assessment_id=assessment.id, number=4))
+        return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
     return render_template('gov/wizard.html', **_step_context(assessment, number))
 
 
@@ -514,7 +553,7 @@ def control_override(assessment_id, control_id):
         abort(403)
     if assessment.config_snapshot_json:
         flash('ขอบเขตถูกยืนยันแล้ว ต้องปลดล็อกก่อนแก้ไข', 'warning')
-        return redirect(url_for('gov.step', assessment_id=assessment.id, number=4))
+        return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
     status = request.form.get('status', '')
     reason = request.form.get('reason', '').strip()[:1000]
     known = {c['id'] for c in current_config(assessment)['controls']}
@@ -522,12 +561,12 @@ def control_override(assessment_id, control_id):
         abort(400)
     if len(reason) < 8:
         flash('การเปลี่ยนขอบเขตต้องมีเหตุผลอย่างน้อย 8 ตัวอักษร', 'warning')
-        return redirect(url_for('gov.step', assessment_id=assessment.id, number=4))
+        return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
     _upsert_decision(assessment, 'control', control_id, override_status=None if status == 'reset' else status, reason=reason)
     audit('applicability_control_override', 'domain_assessment', assessment.id, f'{control_id} -> {status}: {reason}')
     db.session.commit()
     flash(f'บันทึกการเปลี่ยนขอบเขตของ {control_id} แล้ว', 'success')
-    return redirect(url_for('gov.step', assessment_id=assessment.id, number=4))
+    return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
 
 
 @bp.route('/assessments/<int:assessment_id>/freeze', methods=['POST'])
@@ -539,7 +578,7 @@ def assessment_freeze(assessment_id):
         freeze(assessment)
     except ValueError as exc:
         flash(str(exc), 'danger')
-        return redirect(url_for('gov.step', assessment_id=assessment.id, number=4))
+        return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
     audit('domain_assessment_freeze', 'domain_assessment', assessment.id, f'hash={assessment.snapshot_hash}')
     db.session.commit()
     flash('ยืนยันขอบเขตแล้ว ระบบล็อกเกณฑ์ไว้สำหรับ Assessment นี้', 'success')
@@ -558,7 +597,7 @@ def assessment_unfreeze(assessment_id):
     assessment.status, assessment.current_step = 'draft', 4
     audit('domain_assessment_unfreeze', 'domain_assessment', assessment.id)
     db.session.commit()
-    return redirect(url_for('gov.step', assessment_id=assessment.id, number=4))
+    return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
 
 
 # ---------------------------------------------------------------- evidence
@@ -671,7 +710,7 @@ def upload_evidence(assessment_id):
     owner_or_403(assessment)
     target = url_for('gov.step', assessment_id=assessment.id, number=5)
     if not assessment.config_snapshot_json:
-        return redirect(url_for('gov.step', assessment_id=assessment.id, number=4))
+        return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
     if not assessment.data_classification:
         flash('กรุณาเลือกระดับเอกสารก่อนอัปโหลด', 'warning')
         return redirect(target)
