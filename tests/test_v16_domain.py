@@ -574,9 +574,11 @@ class WizardAndUiTests(Base):
         client = self.client_for(self.owner)
         page = client.get('/overview').get_data(as_text=True)
         self.assertIn('EI-GDA Governance Intelligence Platform', page)
-        self.assertIn('13 control เฉพาะด้าน + 8 แกนกลาง', page)
+        self.assertNotIn('domain-card', page)  # the Domain cards live on /domains, not on the overview
+        self.assertNotIn('Domain Explorer', page)
+        self.assertRegex(page, r'class="ov-n">0</span><span class="ov-l">ฉบับร่าง')
         self.assessment(frozen=False)
-        self.assertIn('ฉบับร่าง', client.get('/overview').get_data(as_text=True))
+        self.assertRegex(client.get('/overview').get_data(as_text=True), r'class="ov-n">1</span><span class="ov-l">ฉบับร่าง')
 
     def test_mobile_styles_and_responsive_rules_exist(self):
         css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
@@ -851,7 +853,9 @@ class DomainChooserTests(Base):
         self.assertIn('max-width:none', lifted)
         self.assertIn('class="gov dc fluid-page"', self.page(self.owner))
         self.assertIn('class="gov fluid-page"', self.page(self.owner, '/domains/justice'))
-        self.assertNotIn('fluid-page', self.page(self.owner, '/assessments'))  # other pages keep the standard maximum width
+        for path in ('/overview', '/assessments'):  # the pages restyled like the chooser share its full width
+            self.assertIn('class="gov dc fluid-page ov"', self.page(self.owner, path), path)
+        self.assertNotIn('fluid-page', self.page(self.owner, '/evidence'))  # other pages keep the standard maximum width
         self.assertIn('max-width:72ch', css.split('.dc-desc p{', 1)[1].split('}', 1)[0])  # the text line length stays limited
 
     def test_group_accents_are_readable_and_distinct(self):

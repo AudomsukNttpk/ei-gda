@@ -106,20 +106,6 @@ def overview_stats():
             'pending_review': count('pending_review'), 'critical': critical}
 
 
-def domain_cards():
-    cards = []
-    rows = assessments_query().all()
-    core = DomainControl.query.filter_by(domain_slug='general', is_active=True).count()
-    for profile in list_profiles(db.session):
-        pack = json_loads(profile.payload_json, default={})
-        own = DomainControl.query.filter_by(domain_slug=profile.slug, is_active=True).count()
-        cards.append({'slug': profile.slug, 'title': profile.title, 'title_th': profile.title_th, 'icon': profile.icon, 'accent': profile.accent,
-                      'summary_th': pack.get('summary_th'), 'org_types': [o['title_th'] for o in pack.get('organization_types', [])],
-                      'key_concerns': pack.get('key_concerns', []), 'own_controls': own, 'core_controls': 0 if profile.slug == 'general' else core,
-                      'assessments': sum(1 for a in rows if a.domain_slug == profile.slug), 'provisional': bool(pack.get('provisional_note_th'))})
-    return cards
-
-
 @bp.app_context_processor
 def inject_v16():
     if not session.get('user_id'):
@@ -152,7 +138,7 @@ def inject_v16():
 def overview():
     recent = assessments_query().order_by(DomainAssessment.updated_at.desc()).limit(5).all()
     resume = next((a for a in recent if a.status in ('draft', 'configured') and is_owner(a)), None)
-    return render_template('gov/overview.html', stats=overview_stats(), cards=domain_cards(), recent=recent, resume=resume)
+    return render_template('gov/overview.html', stats=overview_stats(), recent=recent, resume=resume, steps_total=len(STEPS))
 
 
 def display_name_th(title_th):

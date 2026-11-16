@@ -604,3 +604,28 @@ details.acc .acc-body{padding:12px 16px 16px 36px;font-size:var(--fs-sm)}
 .wz .ev-edit{color:var(--accent)}
 @media(max-width:991px){.wz .stepper{justify-content:flex-start}.wz .stepper a,.wz .stepper span.st{flex:none;min-width:104px}}
 @media(max-width:575px){.wz-stage{padding:var(--sp-4)}.wz-sec{padding:var(--sp-4)}.wz .panel{padding:var(--sp-4)}.wz .stepper{margin:var(--sp-3) var(--sp-3) 0}.wz-sub{text-align:left}}
+
+/* Overview (/overview): the same frame, heading and tinted tiles as the Domains chooser, without the Domain cards (those live on /domains). */
+.ov-sub{max-width:72ch;margin:var(--sp-2) auto 0}
+.ov-actions{display:flex;justify-content:center;gap:var(--sp-3);flex-wrap:wrap;margin-top:var(--sp-5)}
+.ov-bh{margin-bottom:var(--sp-4)}
+.ov-h{margin:0;font-size:var(--fs-base);font-weight:700;color:var(--navy)}
+.ov-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:var(--sp-3)}
+.ov-tile{display:flex;flex-direction:column;align-items:center;gap:var(--sp-1);padding:var(--sp-5) var(--sp-4);border:var(--bw) solid color-mix(in srgb,var(--accent) 28%,#fff);border-radius:var(--r);background:color-mix(in srgb,var(--accent) 6%,#fff);text-align:center}
+.ov-ic{display:grid;place-items:center;flex:none;width:48px;height:48px;margin-bottom:var(--sp-2);border-radius:50%;font-size:1.4rem;background:#fff;color:var(--accent)}
+.ov-n{font-size:var(--fs-xl);font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--navy)}
+.ov-l{font-size:var(--fs-sm);font-weight:500;color:var(--ink-2);line-height:1.4}
+.ov-s{font-size:var(--fs-xs);color:var(--muted)}
+.ov-tile.is-alert{border-color:var(--accent);background:var(--bad-bg)}
+.ov-tile.is-alert .ov-n{color:var(--bad)}
+.ov-recent{margin-top:0}
+.ov-table{border:var(--bw) solid var(--rule-soft);border-radius:var(--r-sm)}
+.ov-empty{margin:0}
+@media(max-width:991px){.ov-stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:575px){.ov-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.ov-tile:last-child:nth-child(odd){grid-column:1/-1}.ov-actions .btn{flex:1}}
+
+/* Assessments list (/assessments) reuses the overview frame; only the filter and the Domain pill are new. */
+.ov-filter{display:flex;align-items:center;gap:var(--sp-2)}
+.ov-filter .form-select{min-height:var(--touch);min-width:200px;border-radius:var(--r-sm)}
+.ov-dom{white-space:nowrap}
+@media(max-width:575px){.ov-filter{flex:1 1 100%}.ov-filter .form-select{flex:1}}

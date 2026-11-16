@@ -175,7 +175,7 @@ def main():
         check('JSON export', page.request.get(assessment_url + '/report.json').status == 200)
         check('KG export', page.request.get(assessment_url + '/kg.json').status == 200)
         page.goto(BASE + '/overview')
-        check('portal now counts real work', page.locator('.stat b').nth(3).inner_text() == '1' or page.locator('.stat b').nth(2).inner_text() == '1')
+        check('portal now counts real work', page.locator('.ov-n').nth(3).inner_text() == '1' or page.locator('.ov-n').nth(2).inner_text() == '1')
         check('notification lists pending item', page.locator('.notice-dot').count() == 1)
 
         other = browser.new_context()
