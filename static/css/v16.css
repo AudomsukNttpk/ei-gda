@@ -46,6 +46,9 @@ td a:hover{text-decoration-color:currentColor}
 .brand strong{font-size:1.06rem;letter-spacing:.02em}
 .brand small{color:#b3c1cf;font-size:var(--fs-xs)}
 .side-nav{overflow-y:auto;gap:var(--sp-1)}
+/* hide the sidebar scrollbar but keep it scrollable (wheel, touch, keyboard) so long menus stay reachable on short screens */
+.app-sidebar,.side-nav{scrollbar-width:none;-ms-overflow-style:none}
+.app-sidebar::-webkit-scrollbar,.side-nav::-webkit-scrollbar{display:none}
 .side-nav a,.logout-link{min-height:var(--touch);padding:var(--sp-2) var(--sp-3);border-radius:var(--r-sm);color:#dfe6ee;font-size:var(--fs-sm);font-weight:500;margin:0}
 .side-nav a i,.logout-link i{color:#a9b8c8;font-size:1.15rem;width:24px}
 .side-nav a:hover,.logout-link:hover{background:rgba(255,255,255,.08);color:#fff}
