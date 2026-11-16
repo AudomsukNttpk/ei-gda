@@ -895,6 +895,14 @@ class DomainChooserTests(Base):
 
 
 class SidebarFoldTests(Base):
+    def test_header_has_no_search_box_or_domain_dropdown(self):
+        page = self.client_for(self.owner).get('/overview').get_data(as_text=True)
+        header = page.split('<header class="app-topbar">', 1)[1].split('</header>', 1)[0]
+        for gone in ('role="search"', 'globalSearch', 'topbar-search', 'bi-layers'):
+            self.assertNotIn(gone, header)
+        for kept in ('sidebar-toggle', 'topbar-title', 'notice-menu', 'user-chip'):
+            self.assertIn(kept, header)
+
     def test_toggle_is_an_accessible_button_wired_to_the_sidebar(self):
         page = self.client_for(self.owner).get('/overview').get_data(as_text=True)
         self.assertIn('id="appSidebar"', page)

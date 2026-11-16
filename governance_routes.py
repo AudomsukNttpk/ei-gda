@@ -121,14 +121,14 @@ def inject_v16():
         orgs = {o.id: o for o in Organization.query.filter(Organization.id.in_({m.organization_id for m in rows} or {-1})).all()}
         active = ap.active_org_id()
         unread = Notification.query.filter_by(user_id=session['user_id'], is_read=False).order_by(Notification.created_at.desc()).limit(8).all()
-        return {'current_org': orgs[active].name if active in orgs else (user.organization if user else None), 'nav_profiles': list_profiles(db.session),
+        return {'current_org': orgs[active].name if active in orgs else (user.organization if user else None),
                 'nav_pending': pending, 'nav_drafts': drafts, 'status_labels': STATUS_LABELS, 'nav_memberships': rows, 'nav_orgs': orgs,
                 'active_org_id': active, 'nav_notifications': unread, 'pilot_roles': {m.role for m in rows},
                 'demo_mode': current_app.config.get('DEMO_MODE', False)}
     except Exception:
         # A not-yet-migrated database must not take every page down.
         db.session.rollback()
-        return {'current_org': None, 'nav_profiles': [], 'nav_pending': [], 'nav_drafts': [], 'status_labels': STATUS_LABELS,
+        return {'current_org': None, 'nav_pending': [], 'nav_drafts': [], 'status_labels': STATUS_LABELS,
                 'nav_memberships': [], 'nav_orgs': {}, 'active_org_id': None, 'nav_notifications': [], 'pilot_roles': set(), 'demo_mode': False}
 
 
