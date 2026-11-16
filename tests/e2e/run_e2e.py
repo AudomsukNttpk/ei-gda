@@ -109,8 +109,9 @@ def main():
 
         page.goto(assessment_url + '/step/1')
         check('resume keeps values', page.input_value('#name') == 'E2E EMS Triage' and page.input_value('#org_type') == 'HLT.ORG.EMS')
-        page.goto(assessment_url + '/step/4')
-        check('all eight suites listed', page.locator('details.acc').count() == 8)
+        page.goto(assessment_url + '/step/3')  # laws/standards and Test Suites are one page; /step/4 redirects here
+        check('all eight suites listed', page.locator('details.acc > summary > strong:text-matches("^TS\d+$")').count() == 8)
+        check('suites say where they come from', page.get_by_text('Test Suite นี้มาจาก').count() >= 1)
         page.locator('details.acc').nth(3).locator('summary').click()
         check('TS04 has EMS-02', page.locator('details.acc').nth(3).get_by_text('EMS-02').count() >= 1)
         check('exclusion reason shown', page.get_by_text('ไม่รวม:').count() >= 1)

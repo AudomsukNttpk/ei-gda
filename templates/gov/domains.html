@@ -3,7 +3,7 @@
 <div class="gov dc fluid-page" id="dc">
  <div class="dc-frame">
   <header class="dc-head"><h1>เริ่มประเมิน AI ของหน่วยงานคุณ</h1>
-  {% if resume %}<div class="dc-resume"><i class="bi bi-play-circle" aria-hidden="true"></i><div class="dc-resume-text"><strong>มีงานค้างอยู่</strong> {{ resume.name }} · {{ resume_domain }} · ขั้นที่ {{ resume.current_step or 1 }} จาก {{ steps_total }} · แก้ไข {{ resume.updated_at.strftime('%Y-%m-%d %H:%M') }}</div><a class="btn btn-outline-secondary dc-more" href="{{ url_for('gov.assessment_resume', assessment_id=resume.id) }}">ทำต่อ</a></div>{% endif %}</header>
+  {% if resume %}<div class="dc-resume"><i class="bi bi-play-circle" aria-hidden="true"></i><div class="dc-resume-text"><strong>มีงานค้างอยู่</strong> {{ resume.name }} · {{ resume_domain }} · ขั้นที่ {{ step_label(resume.current_step) }} จาก {{ steps_total }} · แก้ไข {{ resume.updated_at.strftime('%Y-%m-%d %H:%M') }}</div><a class="btn btn-outline-secondary dc-more" href="{{ url_for('gov.assessment_resume', assessment_id=resume.id) }}">ทำต่อ</a></div>{% endif %}</header>
 
   <div class="dc-stage" aria-live="polite">
     <section class="dc-view" data-step="1" aria-labelledby="dcq1">
@@ -37,7 +37,7 @@
               {% if session.get('role') != 'user' and s.version %}<span class="dc-ver" title="เวอร์ชันของชุดเกณฑ์ (เห็นเฉพาะผู้ตรวจและผู้ดูแล)">v{{ s.version }}</span>{% endif %}
               {% if s.provisional %}<span class="dc-draft">ฉบับร่างนำร่อง</span>{% endif %}
             </div>
-            {% if is_user %}<a class="btn btn-primary dc-cta" href="{{ url_for('gov.assessment_new', domain=s.slug) }}">เริ่มประเมิน <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            {% if is_user %}<a class="btn btn-primary dc-cta" href="{{ url_for('gov.assessment_new', domain=s.slug) }}" data-base="{{ url_for('gov.assessment_new', domain=s.slug) }}">เริ่มประเมิน <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             {% else %}<button type="button" class="btn btn-primary dc-cta" data-notice="notice-{{ s.slug }}" aria-expanded="false" aria-controls="notice-{{ s.slug }}">เริ่มประเมิน <i class="bi bi-arrow-right" aria-hidden="true"></i></button>{% endif %}
           </div>
           {% if not is_user %}<p class="dc-notice" id="notice-{{ s.slug }}" role="status" hidden>การเริ่มประเมินทำได้เฉพาะบัญชีผู้ใช้งานที่ประเมินระบบ AI บัญชีของคุณดูรายละเอียดและ Dashboard ของ Domain นี้ได้</p>{% endif %}
@@ -53,7 +53,7 @@
 
           <div class="dc-panel" id="p-{{ s.slug }}-ev" role="region" aria-label="เตรียมอะไรไว้ก่อน เอกสารหลักฐาน" hidden>
             <h4 class="dc-ph">เตรียมอะไรไว้ก่อน · เอกสารหลักฐาน {{ s.evidence|length }} รายการ</h4>
-            <p class="dc-pn">ระบบจะขอเอกสารเหล่านี้ในขั้นที่ 5 ของการประเมิน</p>
+            <p class="dc-pn">ระบบจะขอเอกสารเหล่านี้ในขั้นที่ {{ step_label(5) }} ของการประเมิน</p>
             <ul class="dc-evl{{ ' is-two' if s.evidence|length > 8 }}">{% for e in s.evidence %}<li><i class="bi bi-file-earmark-check" aria-hidden="true"></i><div>{{ e.title_th }}{% if e.why_th %}<div class="dc-sub">{{ e.why_th }}</div>{% endif %}</div></li>{% endfor %}</ul>
           </div>
 
@@ -79,8 +79,9 @@
               <div class="dc-cl">{% for u in s.use_cases[:5] %}<span class="dc-chip"><span class="dc-dot" aria-hidden="true"></span>{{ u }}</span>{% endfor %}{% if s.use_cases|length > 5 %}<span class="dc-chip is-more">และอีก {{ s.use_cases|length - 5 }} ประเภท</span>{% endif %}</div>
             </div>
             <div class="dc-bx is-for">
-              <div class="dc-bh"><span class="dc-mark" aria-hidden="true"></span><h4>เหมาะสำหรับ</h4></div>
-              <div class="dc-cl">{% for o in s.org_types %}{% if o.jump %}<button type="button" class="dc-chip is-other" data-jump="{{ o.jump }}" title="หน่วยงานนี้มีชุดประเมินของตัวเอง กดเพื่อไปดู"><span class="dc-dot" aria-hidden="true"></span>{{ o.title }}<i class="bi bi-arrow-right-short" aria-hidden="true"></i></button>{% else %}<span class="dc-chip is-for"><span class="dc-dot" aria-hidden="true"></span>{{ o.title }}</span>{% endif %}{% endfor %}</div>
+              <div class="dc-bh"><span class="dc-mark" aria-hidden="true"></span><h4>{{ 'เลือกประเภทองค์กรของคุณ' if is_user else 'เหมาะสำหรับ' }}</h4></div>
+              <div class="dc-cl">{% for o in s.org_types %}{% if o.jump %}<button type="button" class="dc-chip is-other" data-jump="{{ o.jump }}" title="หน่วยงานนี้มีชุดประเมินของตัวเอง กดเพื่อไปดู"><span class="dc-dot" aria-hidden="true"></span>{{ o.title }}<i class="bi bi-arrow-right-short" aria-hidden="true"></i></button>{% elif is_user %}<button type="button" class="dc-chip is-for is-pick" data-org="{{ o.id }}" aria-pressed="false"><span class="dc-dot" aria-hidden="true"></span><i class="bi bi-check-lg dc-tick" aria-hidden="true"></i>{{ o.title }}</button>{% else %}<span class="dc-chip is-for"><span class="dc-dot" aria-hidden="true"></span>{{ o.title }}</span>{% endif %}{% endfor %}</div>
+              {% if is_user %}<p class="dc-hint">เลือกแล้วระบบจะใส่ให้ในหน้าการประเมิน ข้ามได้ แล้วเลือกต่อในหน้านั้น</p>{% endif %}
               {% if s.org_types|selectattr('jump')|list %}<p class="dc-hint">สีเทา = หน่วยงานที่มีชุดประเมินของตัวเอง กดเพื่อไปดู</p>{% endif %}
             </div>
           </div>

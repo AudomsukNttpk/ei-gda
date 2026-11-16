@@ -266,6 +266,27 @@ class EvidenceTests(Base):
         self.assertEqual(row.page, 2)
         self.assertIsNone(EvidenceMapping.query.filter_by(assessment_id=assessment.id, requirement_id='EV.EMS.ALLOCATION').first())
 
+    def test_evidence_page_leads_with_what_is_missing(self):
+        assessment = self.assessment()
+        client = self.client_for(self.owner)
+        self.upload(client, assessment, 'nothing relevant here', 'Triage guideline for undertriage review')
+        html = client.get(f'/assessments/{assessment.id}/step/5').get_data(as_text=True)
+        self.assertIn('ev-summary', html)
+        self.assertIn('id="evTabs"', html)
+        self.assertIn('data-start="missing"', html)
+        self.assertLess(html.index('data-ev="missing"'), html.index('data-ev="found"'))  # missing requirements are listed first
+        self.assertIn('ระดับเอกสาร', html)
+        self.assertIn('class="acc ev-class"', html)  # already classified, so the form is folded away
+        self.assertNotIn('aria-disabled="true"', html)
+
+    def test_evidence_page_asks_for_classification_before_moving_on(self):
+        assessment = self.assessment(classification=None)
+        html = self.client_for(self.owner).get(f'/assessments/{assessment.id}/step/5').get_data(as_text=True)
+        self.assertIn('เลือกระดับเอกสารก่อนไปต่อ', html)
+        self.assertIn('aria-disabled="true"', html)
+        self.assertNotIn('class="acc ev-class"', html)  # the classification form stays open until it is chosen
+        self.assertLess(html.index('บันทึกระดับเอกสาร'), html.index('id="pdf_files"'))  # and comes before the upload box
+
     def test_cross_user_access_is_denied(self):
         assessment = self.assessment()
         client = self.client_for(self.owner)
@@ -469,6 +490,31 @@ class OrchestrationTests(Base):
 
 
 class WizardAndUiTests(Base):
+    def test_domain_and_organization_type_carried_from_the_card(self):
+        client = self.client_for(self.owner)
+        page = client.get('/assessments/new?domain=justice&org_type=JUS.ORG.COURT_CONST').get_data(as_text=True)
+        self.assertIn('name="domain_slug" value="justice"', page)
+        self.assertIn('name="org_type" value="JUS.ORG.COURT_CONST"', page)  # carried, so it is not asked again
+        self.assertNotIn('id="org_type"', page)
+        # coming from the sidebar there is nothing to carry: the person chooses here
+        page = client.get('/assessments/new').get_data(as_text=True)
+        self.assertIn('id="org_type"', page)
+        self.assertNotIn('type="hidden" name="domain_slug"', page)
+        # a type that belongs to another Domain, or has its own pack, is ignored and the chooser stays
+        for wanted in ('EDU.ORG.SCHOOL', 'JUS.ORG.COURT_ADMIN', 'nope'):
+            page = client.get('/assessments/new?domain=justice&org_type=' + wanted).get_data(as_text=True)
+            self.assertIn('id="org_type"', page, wanted)
+            self.assertNotIn('type="hidden" name="org_type"', page, wanted)
+
+    def test_new_assessment_refuses_an_organization_type_that_has_its_own_pack(self):
+        client = self.client_for(self.owner)
+        before = DomainAssessment.query.count()
+        response = client.post('/assessments/new', data={'name': 'ศาล', 'organization_name': 'Org', 'domain_slug': 'justice', 'org_type': 'JUS.ORG.COURT_ADMIN'})
+        self.assertEqual(DomainAssessment.query.count(), before)
+        self.assertTrue(response.location.endswith('/assessments/new?domain=justice'))
+        response = client.post('/assessments/new', data={'name': 'ศาล', 'organization_name': 'Org', 'domain_slug': 'justice', 'org_type': 'JUS.ORG.COURT_JUSTICE'})
+        self.assertEqual(DomainAssessment.query.count(), before + 1)
+
     def test_guided_flow_with_save_and_resume(self):
         client = self.client_for(self.owner)
         response = client.post('/assessments/new', data={'name': 'งานทดสอบ', 'organization_name': 'Org', 'domain_slug': 'healthcare', 'org_type': 'HLT.ORG.EMS'})
@@ -480,11 +526,13 @@ class WizardAndUiTests(Base):
         db.session.refresh(assessment)
         self.assertEqual(assessment.current_step, 3)
         self.assertIn('EMS UC1', client.get(f'/assessments/{assessment.id}/step/2').get_data(as_text=True))
+        # laws/standards and Test Suites are one page: each suite shows where it comes from
         page = client.get(f'/assessments/{assessment.id}/step/3').get_data(as_text=True)
         self.assertIn('พระราชบัญญัติการแพทย์ฉุกเฉิน', page)
-        page = client.get(f'/assessments/{assessment.id}/step/4').get_data(as_text=True)
+        self.assertIn('Test Suite นี้มาจาก', page)
         for code, _ in CORE_SUITES:
             self.assertIn(code, page)
+        self.assertTrue(client.get(f'/assessments/{assessment.id}/step/4').location.endswith(f'/assessments/{assessment.id}/step/3'))  # old address still works
         client.post(f'/assessments/{assessment.id}/freeze')
         self.assertEqual(client.get(f'/assessments/{assessment.id}/step/5').status_code, 200)
         client.post(f'/assessments/{assessment.id}/classification', data={'data_classification': 'confidential', 'acknowledged': 'confidential'})
@@ -668,8 +716,9 @@ class DomainChooserTests(Base):
         import re
         page = self.page(self.owner)
         justice = self.view(page, 3, 'justice')
-        self.assertIn('class="dc-chip is-for"><span class="dc-dot" aria-hidden="true"></span>ศาลยุติธรรม</span>', justice)
-        self.assertIn('ศาลรัฐธรรมนูญ</span>', justice)
+        self.assertIn('data-org="JUS.ORG.COURT_JUSTICE"', justice)  # a type this pack keeps is a choice the person can pick
+        self.assertIn('ศาลรัฐธรรมนูญ</button>', justice)
+        self.assertNotIn('data-org="JUS.ORG.COURT_ADMIN"', justice)
         chip = re.search(r'<button type="button" class="dc-chip is-other" data-jump="administrative_court"[^>]*>.*?</button>', justice, re.S)
         self.assertIsNotNone(chip)  # the court the other pack covers is shown, but as a link to that pack
         self.assertIn('ศาลปกครอง', chip.group(0))
@@ -700,7 +749,8 @@ class DomainChooserTests(Base):
         owner = self.page(self.owner)
         justice = self.view(owner, 3, 'justice')
         self.assertIn('ตัวอย่างงานที่ประเมินได้', justice)
-        self.assertIn('เหมาะสำหรับ', justice)
+        self.assertIn('เลือกประเภทองค์กรของคุณ', justice)  # people who assess pick their organization type on the card
+        self.assertIn('เหมาะสำหรับ', self.view(self.page(self.committee), 3, 'justice'))  # everyone else just sees who it suits
         self.assertIn('ประเภทงาน</span>', justice)
         self.assertIn('data-jump=', owner)
         js = open(os.path.join(self.app.static_folder, 'js', 'domain-chooser.js'), encoding='utf-8').read()
@@ -744,7 +794,7 @@ class DomainChooserTests(Base):
         self.assertIn('มีงานค้างอยู่', page)
         self.assertIn('href="/assessments/%d"' % draft.id, page)
         self.assertIn('สุขภาพและการแพทย์ฉุกเฉิน', page.split('มีงานค้างอยู่', 1)[1].split('</div>', 1)[0])
-        self.assertIn('ขั้นที่ 4 จาก 7', page)
+        self.assertIn('ขั้นที่ 3 จาก 6', page)  # stored step 4 is shown as 3: laws and Test Suites are one step
         self.assertNotIn('มีงานค้างอยู่', self.page(self.other))
         self.assertNotIn('มีงานค้างอยู่', self.page(self.committee))
 
@@ -763,7 +813,7 @@ class DomainChooserTests(Base):
         page = self.page(self.owner)
         self.assertEqual(page.count('class="dc-tile"'), 5)
         self.assertEqual(page.count('class="dc-opt"'), 5)  # justice 2 + education 3
-        self.assertEqual(page.count('aria-pressed="false"'), 10)
+        self.assertEqual(page.count('aria-pressed="false"'), 10 + page.count('data-org="'))  # plus the organization type chips
         self.assertNotIn('aria-pressed="true"', page)
         self.assertEqual(page.count('class="dc-check"'), 10)
         css = open(os.path.join(self.app.static_folder, 'css', 'v16.css'), encoding='utf-8').read()
