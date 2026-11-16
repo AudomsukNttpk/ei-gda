@@ -304,8 +304,12 @@ def assessment_new():
     user = db.session.get(User, session['user_id'])
     profiles = list_profiles(db.session)
     packs = {p.slug: json_loads(p.payload_json, default={}) for p in profiles}
+    selected = request.args.get('domain', '')
+    # Arriving from a Domain card (?domain=<slug>) carries the choice with it: show it locked instead of asking again.
+    # The sidebar link has no ?domain=, and an unknown slug falls back to the normal chooser.
+    locked_domain = next((p for p in profiles if p.slug == selected), None)
     return render_template('gov/wizard.html', assessment=None, number=1, steps=STEPS, profiles=profiles, org_type_map={k: v.get('organization_types', []) for k, v in packs.items()}, profile={},
-                           selected=request.args.get('domain', ''), default_org=user.organization if user else '', editable=True)
+                           selected=selected, locked_domain=locked_domain, default_org=user.organization if user else '', editable=True)
 
 
 def _step_context(assessment, number):

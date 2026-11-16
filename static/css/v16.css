@@ -222,6 +222,10 @@ textarea.form-control{min-height:88px}
 .choice:has(input:checked){border-color:var(--seal);background:var(--seal-tint);box-shadow:inset 0 0 0 1px var(--seal)}
 .choice:has(input:focus-visible){box-shadow:var(--focus)}
 .choice small{display:block;color:var(--muted);font-size:var(--fs-xs);font-weight:400}
+/* Domain carried in from a Domain card: shown as chosen and locked, with a link back to the full chooser */
+.choice-locked{cursor:default;align-items:center;border-color:var(--seal);background:var(--seal-tint);box-shadow:inset 0 0 0 1px var(--seal)}
+.choice-locked:hover{border-color:var(--seal)}
+.choice-locked .choice-check{color:var(--seal);font-size:1.15rem;flex:none}
 .form-actions{display:flex;justify-content:space-between;gap:10px;margin-top:24px;padding-top:18px;border-top:1px solid var(--rule-soft);flex-wrap:wrap}
 
 /* buttons */
