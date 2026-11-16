@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import fitz
@@ -13,7 +14,7 @@ import test_international_catalog as fixtures
 from config import Config, assert_safe_runtime
 from extensions import db
 from models import (ApplicabilityDecision, AuditLog, CommitteeAssignment, DocumentCheck, DocumentFile, DomainAssessment, DomainFinding, EvidenceMapping,
-                    RegulatoryReference, TaxonomyEdge, TaxonomyNode, Template, User)
+                    RegulatoryReference, SubmissionRevision, TaxonomyEdge, TaxonomyNode, Template, User)
 from services.applicability import build_context, derive_risk, resolve_control, resolve_critical, resolve_reference
 from services.domain_catalog import CORE_SUITES, DOMAIN_SLUGS, build_taxonomy, get_pack, read_pack_file, read_registry_file, sync_catalog, taxonomy_payload
 from services.domain_orchestrator import build_configuration, current_config
@@ -286,6 +287,105 @@ class EvidenceTests(Base):
         self.assertIn('aria-disabled="true"', html)
         self.assertNotIn('class="acc ev-class"', html)  # the classification form stays open until it is chosen
         self.assertLess(html.index('บันทึกระดับเอกสาร'), html.index('id="pdf_files"'))  # and comes before the upload box
+
+    def test_evidence_library_page_lists_files_and_keeps_the_search(self):
+        assessment = self.assessment()
+        client = self.client_for(self.owner)
+        self.upload(client, assessment, 'triage guideline', name='triage-manual.pdf')
+        page = client.get('/evidence').get_data(as_text=True)
+        self.assertIn('triage-manual.pdf', page)
+        self.assertNotIn('ล้างคำค้น', page)
+        found = client.get('/evidence?q=triage').get_data(as_text=True)
+        self.assertIn('triage-manual.pdf', found)
+        self.assertIn('ล้างคำค้น', found)
+        self.assertIn('ไม่พบไฟล์ที่ตรงกับคำค้น', client.get('/evidence?q=nothing-here').get_data(as_text=True))
+        payload = '<img src=x onerror=alert(1)>'
+        self.assertNotIn(payload, client.get('/evidence', query_string={'q': payload}).get_data(as_text=True))
+
+    def uploaded_file(self, assessment, client, name='stored-only.pdf', *pages):
+        self.upload(client, assessment, *(pages or ('Triage guideline for undertriage review',)), name=name)
+        return DocumentFile.query.filter_by(check_id=assessment.check_id, original_filename=name).first()
+
+    def delete_file(self, client, row, **form):
+        return client.post(f'/evidence/{row.id}/delete', data=form)
+
+    def test_file_that_was_only_uploaded_can_be_deleted(self):
+        assessment = self.assessment()
+        client = self.client_for(self.owner)
+        row = self.uploaded_file(assessment, client)
+        file_id = row.id
+        client.get(f'/assessments/{assessment.id}/step/5')  # the page links the file to requirements it matches
+        self.assertTrue(EvidenceMapping.query.filter_by(document_file_id=file_id).count())
+        self.assertTrue(os.listdir(self.uploads))
+        self.assertEqual(self.delete_file(client, row, back='step').status_code, 302)
+        db.session.expire_all()
+        self.assertIsNone(db.session.get(DocumentFile, file_id))
+        self.assertEqual(EvidenceMapping.query.filter_by(document_file_id=file_id).count(), 0)
+        self.assertEqual(os.listdir(self.uploads), [])  # the stored PDF goes with the last row that uses it
+        self.assertTrue(AuditLog.query.filter_by(action='domain_evidence_delete').first())
+
+    def test_file_that_an_evaluation_used_cannot_be_deleted(self):
+        assessment = self.assessment()
+        client = self.client_for(self.owner)
+        row = self.uploaded_file(assessment, client)
+        assessment.last_run_at = datetime.utcnow() + timedelta(minutes=1)
+        assessment.summary_json = '{}'
+        db.session.commit()
+        self.delete_file(client, row)
+        db.session.expire_all()
+        self.assertIsNotNone(db.session.get(DocumentFile, row.id))
+        self.assertTrue(os.listdir(self.uploads))
+        for path in ('/evidence', f'/assessments/{assessment.id}/step/5'):
+            page = client.get(path).get_data(as_text=True)
+            self.assertIn('ใช้ในการประเมินแล้ว', page, path)
+            self.assertNotIn(f'/evidence/{row.id}/delete', page, path)
+
+    def test_file_uploaded_after_the_last_run_is_still_deletable(self):
+        assessment = self.assessment()
+        client = self.client_for(self.owner)
+        assessment.last_run_at = datetime.utcnow() - timedelta(hours=1)
+        assessment.summary_json = '{}'
+        db.session.commit()
+        row = self.uploaded_file(assessment, client)
+        self.assertIn(f'/evidence/{row.id}/delete', client.get('/evidence').get_data(as_text=True))
+        self.delete_file(client, row)
+        db.session.expire_all()
+        self.assertIsNone(db.session.get(DocumentFile, row.id))
+
+    def test_file_that_went_out_in_a_submission_cannot_be_deleted(self):
+        assessment = self.assessment()
+        client = self.client_for(self.owner)
+        row = self.uploaded_file(assessment, client)
+        db.session.add(SubmissionRevision(assessment_id=assessment.id, revision_no=1, submitted_by=self.owner.id, files_json=json.dumps([{'file_id': row.id}])))
+        db.session.commit()
+        self.delete_file(client, row)
+        db.session.expire_all()
+        self.assertIsNotNone(db.session.get(DocumentFile, row.id))
+        self.assertIn('ส่งตรวจแล้ว', client.get('/evidence').get_data(as_text=True))
+
+    def test_only_the_owner_can_delete_a_file(self):
+        assessment = self.assessment()
+        row = self.uploaded_file(assessment, self.client_for(self.owner))
+        self.assertEqual(self.delete_file(self.client_for(self.other), row).status_code, 403)
+        self.assertEqual(self.delete_file(self.client_for(self.admin), row).status_code, 302)  # not a user role: sent away, nothing deleted
+        self.assertEqual(self.delete_file(self.app.test_client(), row).status_code, 302)  # anonymous goes to sign in
+        db.session.expire_all()
+        self.assertIsNotNone(db.session.get(DocumentFile, row.id))
+        self.assertEqual(self.client_for(self.owner).post('/evidence/999999/delete').status_code, 404)
+
+    def test_stored_pdf_stays_while_another_assessment_still_uses_it(self):
+        client = self.client_for(self.owner)
+        first, second = self.assessment(), self.assessment()
+        content = make_pdf('same bytes in both assessments').getvalue()
+        for target in (first, second):
+            client.post(f'/assessments/{target.id}/evidence', data={'pdf_files': (io.BytesIO(content), 'shared.pdf')}, content_type='multipart/form-data')
+        a = DocumentFile.query.filter_by(check_id=first.check_id).first()
+        b = DocumentFile.query.filter_by(check_id=second.check_id).first()
+        self.assertEqual(a.stored_filename, b.stored_filename)
+        self.delete_file(client, a)
+        self.assertEqual(len(os.listdir(self.uploads)), 1)
+        self.delete_file(client, b)
+        self.assertEqual(os.listdir(self.uploads), [])
 
     def test_cross_user_access_is_denied(self):
         assessment = self.assessment()
@@ -853,9 +953,9 @@ class DomainChooserTests(Base):
         self.assertIn('max-width:none', lifted)
         self.assertIn('class="gov dc fluid-page"', self.page(self.owner))
         self.assertIn('class="gov fluid-page"', self.page(self.owner, '/domains/justice'))
-        for path in ('/overview', '/assessments'):  # the pages restyled like the chooser share its full width
+        for path in ('/overview', '/assessments', '/evidence'):  # the pages restyled like the chooser share its full width
             self.assertIn('class="gov dc fluid-page ov"', self.page(self.owner, path), path)
-        self.assertNotIn('fluid-page', self.page(self.owner, '/evidence'))  # other pages keep the standard maximum width
+        self.assertNotIn('fluid-page', self.page(self.owner, '/regulations'))  # other pages keep the standard maximum width
         self.assertIn('max-width:72ch', css.split('.dc-desc p{', 1)[1].split('}', 1)[0])  # the text line length stays limited
 
     def test_group_accents_are_readable_and_distinct(self):
