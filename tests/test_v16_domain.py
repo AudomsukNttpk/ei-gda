@@ -953,9 +953,9 @@ class DomainChooserTests(Base):
         self.assertIn('max-width:none', lifted)
         self.assertIn('class="gov dc fluid-page"', self.page(self.owner))
         self.assertIn('class="gov fluid-page"', self.page(self.owner, '/domains/justice'))
-        for path in ('/overview', '/assessments', '/evidence', '/regulations'):  # the pages restyled like the chooser share its full width
+        for path in ('/overview', '/assessments', '/evidence', '/regulations', '/reports', '/test-suites/tree', '/test-suites/graph'):  # the pages restyled like the chooser share its full width
             self.assertIn('class="gov dc fluid-page ov"', self.page(self.owner, path), path)
-        self.assertNotIn('fluid-page', self.page(self.owner, '/reports'))  # other pages keep the standard maximum width
+        self.assertNotIn('fluid-page', self.page(self.owner, '/dashboard'))  # other pages keep the standard maximum width
         self.assertIn('max-width:72ch', css.split('.dc-desc p{', 1)[1].split('}', 1)[0])  # the text line length stays limited
 
     def test_group_accents_are_readable_and_distinct(self):
