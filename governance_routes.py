@@ -11,7 +11,7 @@ from flask import Blueprint, Response, abort, current_app, flash, jsonify, redir
 
 from extensions import db
 from models import (ApplicabilityDecision, AuditLog, CommitteeAssignment, DocumentCheck, DocumentFile, DomainAssessment, DomainControl,
-                    DomainFinding, EvidenceMapping, EvidenceRequirement, RegulatoryReference, Standard, TaxonomyNode, Template, User)
+                    DomainFinding, EvidenceMapping, EvidenceRequirement, RegulatoryReference, Standard, SubmissionRevision, TaxonomyNode, Template, User)
 from services.applicability import IMPACT_ORDER, category_sensitivity
 from services.domain_catalog import CORE_SUITES, covered_org_types, get_pack, layer_packs, list_groups, list_profiles, taxonomy_payload
 from services.domain_kg import build_assessment_graph, finding_trace
@@ -377,7 +377,7 @@ def _step_context(assessment, number):
                     title = (references.get(ref) or {}).get('title_th') or ref
                     if title not in link['regulations']:
                         link['regulations'].append(title)
-        context.update(files=files, mapped=mapped, reusable=reusable[:30], sensitivity=sensitivity, force_confidential=sensitivity == 'sensitive', active_controls=active, requirement_links=requirement_links)
+        context.update(files=files, file_state=evidence_states(files, {assessment.check_id: assessment}), mapped=mapped, reusable=reusable[:30], sensitivity=sensitivity, force_confidential=sensitivity == 'sensitive', active_controls=active, requirement_links=requirement_links)
     if number == 6:
         mapped = mappings_by_requirement(assessment)
         active = [c for c in context['config']['controls'] if c['final_status'] != 'not_applicable']
@@ -782,6 +782,71 @@ def reuse_evidence(assessment_id):
     return redirect(target)
 
 
+def evidence_states(files, assessments_by_check):
+    """For each uploaded file: can it still be deleted, and if not, why.
+
+    A file counts as used once an evaluation has run on it (it was uploaded before the last run) or it went out in a
+    submission. Used files are kept as the record of what the result rests on. A file that was only uploaded, or uploaded
+    after the last run and not yet submitted, is still just stored and can be deleted by the owner while the organization
+    holds the work."""
+    submitted, owners, editable, out = {}, {}, {}, {}
+    for f in files:
+        a = assessments_by_check.get(f.check_id)
+        if a is None:
+            out[f.id] = {'can_delete': False, 'reason': 'ไฟล์จากงานรุ่นก่อน'}
+            continue
+        if a.id not in submitted:
+            ids = set()
+            for revision in SubmissionRevision.query.filter_by(assessment_id=a.id).all():
+                ids.update(item.get('file_id') for item in json_loads(revision.files_json, default=[]))
+            submitted[a.id], owners[a.id], editable[a.id] = ids, is_owner(a), wf.org_can_modify(a)
+        evaluated = bool(a.last_run_at or a.summary_json or a.status in ('pending_review', 'completed'))
+        if evaluated and (a.last_run_at is None or f.created_at is None or f.created_at <= a.last_run_at):
+            out[f.id] = {'can_delete': False, 'reason': 'ใช้ในการประเมินแล้ว'}
+        elif f.id in submitted[a.id]:
+            out[f.id] = {'can_delete': False, 'reason': 'ส่งตรวจแล้ว'}
+        elif not owners[a.id]:
+            out[f.id] = {'can_delete': False, 'reason': None}
+        elif not editable[a.id]:
+            out[f.id] = {'can_delete': False, 'reason': 'งานอยู่ระหว่างทบทวน'}
+        else:
+            out[f.id] = {'can_delete': True, 'reason': None}
+    return out
+
+
+@bp.route('/evidence/<int:file_id>/delete', methods=['POST'])
+@login_required(role='user')
+def delete_evidence(file_id):
+    row = db.session.get(DocumentFile, file_id)
+    assessment = DomainAssessment.query.filter_by(check_id=row.check_id).first() if row else None
+    if row is None or assessment is None:
+        abort(404)
+    assessment = get_assessment_or_403(assessment.id)
+    owner_or_403(assessment)
+    back = url_for('gov.step', assessment_id=assessment.id, number=5) if request.form.get('back') == 'step' else url_for('gov.evidence_library')
+    state = evidence_states([row], {row.check_id: assessment})[row.id]
+    if not state['can_delete']:
+        flash(f"ลบไฟล์นี้ไม่ได้ เพราะ{state['reason']} ไฟล์ที่ใช้แล้วต้องเก็บไว้เป็นหลักฐานของผลที่ออกไป" if state['reason'] else 'ลบไฟล์นี้ไม่ได้', 'danger')
+        return redirect(back)
+    name, stored, check = row.original_filename, row.stored_filename, db.session.get(DocumentCheck, row.check_id)
+    EvidenceMapping.query.filter_by(document_file_id=row.id).delete()
+    db.session.delete(row)
+    db.session.flush()
+    remaining = DocumentFile.query.filter_by(check_id=check.id).order_by(DocumentFile.id).all()
+    check.extracted_text = '\n'.join((f.extracted_text or '') for f in remaining)[:1200000]
+    if check.stored_filename == stored and remaining:
+        check.stored_filename = remaining[0].stored_filename
+    audit('domain_evidence_delete', 'domain_assessment', assessment.id, f'file={file_id}; name={name}')
+    db.session.commit()
+    if not DocumentFile.query.filter_by(stored_filename=stored).first():
+        try:
+            os.remove(os.path.join(current_app.config['UPLOAD_FOLDER'], stored))
+        except OSError:
+            pass
+    flash(f'ลบไฟล์ {name} แล้ว', 'success')
+    return redirect(back)
+
+
 @bp.route('/assessments/<int:assessment_id>/evidence/map', methods=['POST'])
 @login_required(role='user')
 def map_evidence(assessment_id):
@@ -820,7 +885,8 @@ def evidence_library():
     if rows:
         for mapping in EvidenceMapping.query.filter(EvidenceMapping.document_file_id.in_([r.id for r in rows])).all():
             usage.setdefault(mapping.document_file_id, set()).add(mapping.requirement_id)
-    return render_template('gov/evidence.html', rows=rows, checks=checks, usage=usage, term=term)
+    assessments = {a.check_id: a for a in DomainAssessment.query.filter(DomainAssessment.check_id.in_({r.check_id for r in rows})).all()} if rows else {}
+    return render_template('gov/evidence.html', rows=rows, checks=checks, usage=usage, term=term, states=evidence_states(rows, assessments))
 
 
 # ---------------------------------------------------------------- run and results

@@ -626,3 +626,29 @@ details.acc .acc-body{padding:12px 16px 16px 36px;font-size:var(--fs-sm)}
 .ov-table .table-clean th,.ov-table .table-clean td{padding:var(--sp-3)}
 .ov-tbl-as td:nth-child(-n+2){min-width:200px}
 @media(max-width:575px){.ov-filter{flex:1 1 100%}.ov-filter .form-select{flex:1}}
+
+/* Evidence library (/evidence) reuses the overview frame; only the search row and the file name are new. */
+.ov-search{display:flex;align-items:center;justify-content:center;gap:var(--sp-2)}
+.ov-search .form-control{flex:0 1 320px;width:320px;min-height:var(--touch);border-radius:var(--r-sm)}
+.ev-fn{display:inline-flex;align-items:baseline;gap:var(--sp-2)}
+.ev-fn>span{overflow-wrap:anywhere}
+.ev-fn>i{flex:none;color:var(--bad)}
+.ov-tbl-ev td:first-child{min-width:240px}
+@media(max-width:575px){.ov-search{width:100%;flex-wrap:wrap}.ov-search .form-control{flex:1 1 100%;width:auto;min-width:0}}
+
+/* Uploaded files: a used file is locked, a stored-only file can be deleted. */
+.ev-lock{display:inline-flex;align-items:center;gap:var(--sp-1);padding:var(--sp-1) var(--sp-2);border-radius:var(--r-pill);background:var(--neutral-bg);color:var(--neutral);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.ev-del{display:inline;margin:0}
+
+/* Regulatory registry (/regulations) reuses the overview frame and the assessments filter; only the table widths are new. */
+.ov-tbl-reg td:first-child{min-width:280px}
+.ov-tbl-reg td:nth-child(2){min-width:150px}
+
+/* Reports, Test Suite tree and Knowledge Graph reuse the overview frame. */
+.ov-tbl-rep td:first-child{min-width:180px}
+.ov-tbl-rep td:nth-child(2){min-width:150px}
+.ov-tbl-rep th{white-space:normal}
+.ov-dom-txt{display:inline-flex;align-items:baseline;gap:var(--sp-2)}
+.ov-dom-txt .dc-dot{flex:none}
+.ov .kg-picker,.ov .kg-stats{margin-bottom:0}
+.ov .tree-toolbar{margin-top:0}
