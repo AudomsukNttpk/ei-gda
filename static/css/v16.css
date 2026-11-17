@@ -652,3 +652,42 @@ details.acc .acc-body{padding:12px 16px 16px 36px;font-size:var(--fs-sm)}
 .ov-dom-txt .dc-dot{flex:none}
 .ov .kg-picker,.ov .kg-stats{margin-bottom:0}
 .ov .tree-toolbar{margin-top:0}
+
+/* Flat tiles on the page canvas, the way the Apple and Samsung home pages lay out their blocks: no card around the page and
+   no box inside a box. The hero, each group of counts and the list are single white tiles with the page colour showing in
+   the gutters; borders and shadows are gone and buttons are pills. Used on the overview first. */
+.ov-canvas .dc-frame{display:flex;flex-direction:column;gap:var(--sp-3);border:0;box-shadow:none;background:none;overflow:visible}
+.ov-canvas .dc-head{padding:var(--sp-7) var(--sp-6);border-radius:var(--r);background:var(--sheet)}
+.ov-canvas .dc-head h1{font-size:clamp(1.75rem,3.2vw,2.5rem);letter-spacing:-.01em}
+.ov-canvas .ov-sub{margin-bottom:0}
+.ov-canvas .btn{padding-inline:var(--sp-5);border-radius:var(--r-pill)}
+.ov-canvas .dc-stage{gap:var(--sp-3);padding:0;background:none}
+.ov-canvas .ov-stats{gap:var(--sp-3)}
+.ov-canvas .ov-tile{border:0;border-radius:var(--r);background:var(--sheet)}
+.ov-canvas .ov-ic{background:color-mix(in srgb,var(--accent) 12%,#fff)}
+.ov-canvas .ov-tile.is-alert{background:var(--bad-bg)}
+.ov-canvas .ov-recent{padding:var(--sp-5) var(--sp-6);border:0;border-radius:var(--r);background:var(--sheet)}
+.ov-canvas .ov-table{border:0}
+
+/* The same flat tiles on every restyled page. */
+.ov-canvas .panel,.ov-canvas .metric-row{border:0}
+.ov-canvas .tree-toolbar{padding:var(--sp-2) var(--sp-3);border:0;border-radius:var(--r-sm);background:var(--paper)}
+.ov-canvas .tree-legend span{border:0;background:var(--paper)}
+.ov-canvas .suite-tree{padding:0;border:0;background:none;box-shadow:none}
+/* Domains: the chooser keeps one tile for its three steps, under the hero tile. */
+.ov-canvas.dc-solo .dc-stage{gap:var(--sp-6);padding:var(--sp-6);border-radius:var(--r);background:var(--sheet)}
+.ov-canvas.dc-solo .dc-card{border:0;background:color-mix(in srgb,var(--accent) 5%,#fff)}
+.ov-canvas.dc-solo .dc-card .dc-desc,.ov-canvas.dc-solo .dc-card .dc-bx,.ov-canvas.dc-solo .dc-card .dc-panel{background:#fff}
+
+/* Resume banner on the Domains page: label, name, then the facts (Domain, progress, last edit) on one tidy row. */
+.dc-resume-rich{gap:var(--sp-4);padding:var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-3)}
+.dc-resume-ic{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;background:#fff;color:var(--seal);font-size:1.6rem}
+.dc-resume-kicker{display:block;font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;color:var(--seal-strong)}
+.dc-resume-name{display:block;font-size:var(--fs-md);line-height:1.35;color:var(--navy)}
+.dc-resume-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-4);margin-top:var(--sp-1);font-size:var(--fs-sm);color:var(--ink-2)}
+.dc-resume-domain{font-weight:600}
+.dc-resume-step{display:inline-flex;align-items:center;gap:var(--sp-2);font-weight:600;font-variant-numeric:tabular-nums}
+.dc-resume-bar{width:72px;height:6px;border-radius:var(--r-pill);background:#fff;overflow:hidden}
+.dc-resume-bar>span{display:block;height:100%;background:var(--seal)}
+.dc-resume-time{color:var(--muted)}
+.dc-resume-rich .dc-more{margin-left:auto}

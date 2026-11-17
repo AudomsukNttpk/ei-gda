@@ -3,7 +3,7 @@
 {% block page_title %}Test Suite Tree{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/suite-tree.css') }}">{% endblock %}
 {% block content %}
-<div class="gov dc fluid-page ov" style="--accent:var(--seal)">
+<div class="gov dc fluid-page ov ov-canvas" style="--accent:var(--seal)">
  <div class="dc-frame">
   <header class="dc-head"><h1>Test Suite Tree</h1><p class="dc-qs ov-sub">สำรวจความเชื่อมโยงจากชุดประเมินไปถึงหลักฐาน ทีละกิ่งของข้อมูล</p>
    <div class="ov-actions"><a class="btn btn-outline-secondary" href="{{ url_for('test_suite_explorer') }}"><i class="bi bi-bezier2 me-1" aria-hidden="true"></i>Explorer</a><a class="btn btn-primary" href="{{ url_for('gov.suite_graph') }}"><i class="bi bi-share me-1" aria-hidden="true"></i>ดูเป็นกราฟ 3D</a></div>
