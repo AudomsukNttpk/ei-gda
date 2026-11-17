@@ -1,6 +1,6 @@
 {% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}ภาพรวม · EI-GDA{% endblock %}{% block page_title %}ภาพรวม{% endblock %}
 {% block content %}{% set is_user = session.get('role') == 'user' %}
-<div class="gov dc fluid-page ov" style="--accent:var(--seal)">
+<div class="gov dc fluid-page ov ov-canvas" style="--accent:var(--seal)">
  <div class="dc-frame">
   <header class="dc-head"><h1>EI-GDA Governance Intelligence Platform</h1>
    <p class="dc-qs ov-sub">แพลตฟอร์มประเมิน AI และ Data Governance ที่ปรับเกณฑ์ตามบริบทองค์กร พร้อมหลักฐานที่ตรวจสอบย้อนกลับได้</p>

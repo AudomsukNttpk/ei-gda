@@ -1,9 +1,9 @@
 {% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}เริ่มประเมิน · EI-GDA{% endblock %}{% block page_title %}Domains{% endblock %}
 {% block content %}{% set is_user = session.get('role') == 'user' %}
-<div class="gov dc fluid-page" id="dc">
+<div class="gov dc fluid-page ov-canvas dc-solo" id="dc">
  <div class="dc-frame">
   <header class="dc-head"><h1>เริ่มประเมิน AI ของหน่วยงานคุณ</h1>
-  {% if resume %}<div class="dc-resume"><i class="bi bi-play-circle" aria-hidden="true"></i><div class="dc-resume-text"><strong>มีงานค้างอยู่</strong> {{ resume.name }} · {{ resume_domain }} · ขั้นที่ {{ step_label(resume.current_step) }} จาก {{ steps_total }} · แก้ไข {{ resume.updated_at.strftime('%Y-%m-%d %H:%M') }}</div><a class="btn btn-outline-secondary dc-more" href="{{ url_for('gov.assessment_resume', assessment_id=resume.id) }}">ทำต่อ</a></div>{% endif %}</header>
+  {% if resume %}{% set rs = step_label(resume.current_step) %}<div class="dc-resume dc-resume-rich"><span class="dc-resume-ic" aria-hidden="true"><i class="bi bi-play-fill"></i></span><div class="dc-resume-text"><span class="dc-resume-kicker">มีงานค้างอยู่</span><strong class="dc-resume-name">{{ resume.name }}</strong><div class="dc-resume-meta"><span class="dc-resume-domain">{{ resume_domain }}</span><span class="dc-resume-step"><span class="dc-resume-bar" role="progressbar" aria-label="ความคืบหน้า" aria-valuemin="0" aria-valuemax="{{ steps_total }}" aria-valuenow="{{ rs }}"><span style="width:{{ (100 * rs / steps_total)|round }}%"></span></span>ขั้นที่ {{ rs }} จาก {{ steps_total }}</span><span class="dc-resume-time"><i class="bi bi-clock" aria-hidden="true"></i> แก้ไข {{ resume.updated_at.strftime('%Y-%m-%d %H:%M') }}</span></div></div><a class="btn btn-primary dc-more" href="{{ url_for('gov.assessment_resume', assessment_id=resume.id) }}">ทำต่อ <i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>{% endif %}</header>
 
   <div class="dc-stage" aria-live="polite">
     <section class="dc-view" data-step="1" aria-labelledby="dcq1">

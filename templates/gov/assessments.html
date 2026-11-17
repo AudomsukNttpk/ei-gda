@@ -1,6 +1,6 @@
 {% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}การประเมิน · EI-GDA{% endblock %}{% block page_title %}การประเมิน{% endblock %}
 {% block content %}{% set is_user = session.get('role') == 'user' %}
-<div class="gov dc fluid-page ov" style="--accent:var(--seal)">
+<div class="gov dc fluid-page ov ov-canvas" style="--accent:var(--seal)">
  <div class="dc-frame">
   <header class="dc-head"><h1>การประเมิน</h1>
    <p class="dc-qs ov-sub">งานตาม Domain และงานจากรุ่นก่อนที่ยังเปิดดูได้ครบ</p>
