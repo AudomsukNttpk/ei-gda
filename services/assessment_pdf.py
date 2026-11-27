@@ -161,8 +161,8 @@ def render_pdf(html, title=''):
     doc = fitz.open(stream=buffer.getvalue(), filetype='pdf')
     for number, page in enumerate(doc, 1):
         page.insert_font(fontname='th', fontfile=str(FONT_DIR / 'Sarabun-Regular.ttf'))
-        page.insert_text((40, page.rect.height - 24), f'Ei-GDA · หน้า {number}/{doc.page_count}', fontsize=7.5, fontname='th', color=(0.4, 0.45, 0.5))
-    doc.set_metadata({'title': title, 'producer': 'Ei-GDA', 'creator': 'Ei-GDA'})
+        page.insert_text((40, page.rect.height - 24), f'EI-DA · หน้า {number}/{doc.page_count}', fontsize=7.5, fontname='th', color=(0.4, 0.45, 0.5))
+    doc.set_metadata({'title': title, 'producer': 'EI-DA', 'creator': 'EI-DA'})
     data = doc.tobytes(garbage=3, deflate=True)
     doc.close()
     return data

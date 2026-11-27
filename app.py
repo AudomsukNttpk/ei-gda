@@ -74,7 +74,7 @@ def create_app():
 
     @app.context_processor
     def inject_globals():
-        return {'session': session, 'gemini_enabled': gemini_enabled(), 'local_model_enabled': local_model_enabled(), 'thaid_enabled': thaid_is_configured(), 'platform_name': 'Ei-GDA', 'domain_packs': list_packs()}
+        return {'session': session, 'gemini_enabled': gemini_enabled(), 'local_model_enabled': local_model_enabled(), 'thaid_enabled': thaid_is_configured(), 'platform_name': 'EI-DA', 'domain_packs': list_packs()}
 
     def redirect_by_role():
         return redirect(url_for('gov.overview'))

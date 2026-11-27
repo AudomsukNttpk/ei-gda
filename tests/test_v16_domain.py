@@ -276,17 +276,43 @@ class EvidenceTests(Base):
         self.assertIn('id="evTabs"', html)
         self.assertIn('data-start="missing"', html)
         self.assertLess(html.index('data-ev="missing"'), html.index('data-ev="found"'))  # missing requirements are listed first
-        self.assertIn('ระดับเอกสาร', html)
-        self.assertIn('class="acc ev-class"', html)  # already classified, so the form is folded away
+        self.assertNotIn('ระดับเอกสาร', html)
+        self.assertNotIn('class="acc ev-class"', html)
+        self.assertNotIn('บันทึกระดับเอกสาร', html)
         self.assertNotIn('aria-disabled="true"', html)
 
-    def test_evidence_page_asks_for_classification_before_moving_on(self):
+    def test_evidence_page_hides_classification_and_auto_derives_from_step2(self):
         assessment = self.assessment(classification=None)
         html = self.client_for(self.owner).get(f'/assessments/{assessment.id}/step/5').get_data(as_text=True)
-        self.assertIn('เลือกระดับเอกสารก่อนไปต่อ', html)
-        self.assertIn('aria-disabled="true"', html)
-        self.assertNotIn('class="acc ev-class"', html)  # the classification form stays open until it is chosen
-        self.assertLess(html.index('บันทึกระดับเอกสาร'), html.index('id="pdf_files"'))  # and comes before the upload box
+        db.session.refresh(assessment)
+        self.assertEqual(assessment.data_classification, 'confidential')
+        self.assertNotIn('บันทึกระดับเอกสาร', html)
+        self.assertNotIn('เลือกระดับเอกสารก่อนไปต่อ', html)
+        self.assertNotIn('aria-disabled="true"', html)
+        self.assertIn('id="pdf_files"', html)
+
+    def test_step2_auto_derives_classification_from_data_categories(self):
+        client = self.client_for(self.owner)
+        cases = [
+            (['GEN.DATA.PUBLIC'], 'open'),
+            (['GEN.DATA.INTERNAL'], 'confidential'),
+            (['GEN.DATA.PERSONAL'], 'confidential'),
+            (['GEN.DATA.SENSITIVE'], 'confidential'),
+            (['GEN.DATA.PUBLIC', 'GEN.DATA.INTERNAL'], 'confidential'),
+        ]
+        for categories, expected in cases:
+            client.post('/assessments/new', data={'name': f'Auto {expected}', 'organization_name': 'Org', 'domain_slug': 'general', 'org_type': 'GEN.ORG.PUBLIC'})
+            assessment = DomainAssessment.query.order_by(DomainAssessment.id.desc()).first()
+            client.post(f'/assessments/{assessment.id}/step/2', data={
+                'use_case': 'GEN.UC.ASSISTANT', 'functional_area': 'GEN.FA.OPS',
+                'data_categories': categories, 'decision_impact': 'assistive',
+            })
+            db.session.refresh(assessment)
+            self.assertEqual(assessment.data_classification, expected, categories)
+            client.post(f'/assessments/{assessment.id}/freeze')
+            step5_html = client.get(f'/assessments/{assessment.id}/step/6').get_data(as_text=True)
+            self.assertIn('ระดับเอกสาร', step5_html)
+            self.assertIn(expected, step5_html)
 
     def test_evidence_library_page_lists_files_and_keeps_the_search(self):
         assessment = self.assessment()
@@ -625,6 +651,7 @@ class WizardAndUiTests(Base):
         client.post(f'/assessments/{assessment.id}/step/2', data={'use_case': 'EMS.UC1', 'functional_area': 'EMS.STAGE.3', 'data_categories': ['HLT.DATA.HEALTH'], 'decision_impact': 'assistive', 'flag_is_public_agency': 'yes'})
         db.session.refresh(assessment)
         self.assertEqual(assessment.current_step, 3)
+        self.assertEqual(assessment.data_classification, 'confidential')
         self.assertIn('EMS UC1', client.get(f'/assessments/{assessment.id}/step/2').get_data(as_text=True))
         # laws/standards and Test Suites are one page: each suite shows where it comes from
         page = client.get(f'/assessments/{assessment.id}/step/3').get_data(as_text=True)
@@ -635,7 +662,6 @@ class WizardAndUiTests(Base):
         self.assertTrue(client.get(f'/assessments/{assessment.id}/step/4').location.endswith(f'/assessments/{assessment.id}/step/3'))  # old address still works
         client.post(f'/assessments/{assessment.id}/freeze')
         self.assertEqual(client.get(f'/assessments/{assessment.id}/step/5').status_code, 200)
-        client.post(f'/assessments/{assessment.id}/classification', data={'data_classification': 'confidential', 'acknowledged': 'confidential'})
         self.assertEqual(client.get(f'/assessments/{assessment.id}/step/6').status_code, 200)
         with patch('services.domain_orchestrator.local_model_enabled', return_value=False):
             client.post(f'/assessments/{assessment.id}/run')
@@ -673,7 +699,7 @@ class WizardAndUiTests(Base):
     def test_portal_counts_come_from_database(self):
         client = self.client_for(self.owner)
         page = client.get('/overview').get_data(as_text=True)
-        self.assertIn('EI-GDA Governance Intelligence Platform', page)
+        self.assertIn('EI-DA Governance Intelligence Platform', page)
         self.assertNotIn('domain-card', page)  # the Domain cards live on /domains, not on the overview
         self.assertNotIn('Domain Explorer', page)
         self.assertRegex(page, r'class="ov-n">0</span><span class="ov-l">ฉบับร่าง')

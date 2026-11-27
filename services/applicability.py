@@ -28,6 +28,14 @@ def category_sensitivity(pack_categories, selected):
     return max(known, key=lambda s: _rank(SENSITIVITY_ORDER, s)) if known else None
 
 
+def derive_classification(pack_categories, selected):
+    """Map highest selected data sensitivity to document classification: public -> open, internal/personal/sensitive -> confidential."""
+    sensitivity = category_sensitivity(pack_categories, selected)
+    if sensitivity is None:
+        return None
+    return 'open' if sensitivity == 'public' else 'confidential'
+
+
 def derive_risk(profile, use_case=None, sensitivity=None):
     """Derive inherent risk from impact, data sensitivity and flags. The use-case floor cannot be lowered."""
     reasons = []

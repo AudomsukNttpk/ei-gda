@@ -1,8 +1,8 @@
-{% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}ภาพรวม · EI-GDA{% endblock %}{% block page_title %}ภาพรวม{% endblock %}
+{% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}ภาพรวม · EI-DA{% endblock %}{% block page_title %}ภาพรวม{% endblock %}
 {% block content %}{% set is_user = session.get('role') == 'user' %}
 <div class="gov dc fluid-page ov ov-canvas" style="--accent:var(--seal)">
  <div class="dc-frame">
-  <header class="dc-head"><h1>EI-GDA Governance Intelligence Platform</h1>
+  <header class="dc-head"><h1>EI-DA Governance Intelligence Platform</h1>
    <p class="dc-qs ov-sub">แพลตฟอร์มประเมิน AI และ Data Governance ที่ปรับเกณฑ์ตามบริบทองค์กร พร้อมหลักฐานที่ตรวจสอบย้อนกลับได้</p>
    {% if resume %}<div class="dc-resume"><i class="bi bi-play-circle" aria-hidden="true"></i><div class="dc-resume-text"><strong>มีงานค้างอยู่</strong> {{ resume.name|truncate(40, True, '…') }} · ขั้นที่ {{ step_label(resume.current_step) }} จาก {{ steps_total }}</div><a class="btn btn-outline-secondary dc-more" href="{{ url_for('gov.assessment_resume', assessment_id=resume.id) }}">ทำต่อ</a></div>{% endif %}
    <div class="ov-actions">{% if is_user %}<a class="btn btn-primary" href="{{ url_for('gov.assessment_new') }}"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>เริ่มประเมินใหม่</a>{% endif %}<a class="btn btn-outline-secondary" href="{{ url_for('gov.domains') }}"><i class="bi bi-grid me-1" aria-hidden="true"></i>เลือก Domain</a></div>

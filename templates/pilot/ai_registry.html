@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% import 'pilot/_ui.html' as pui with context %}
-{% block title %}ทะเบียน AI · EI-GDA{% endblock %}{% block page_title %}ทะเบียน AI{% endblock %}
+{% block title %}ทะเบียน AI · EI-DA{% endblock %}{% block page_title %}ทะเบียน AI{% endblock %}
 {% block content %}<div class="gov">{{ pui.demo_notice(demo_mode) }}
 <div class="page-head"><div><h1>ทะเบียน AI</h1><p class="lead-text">ระบบ AI ของหน่วยงาน เจ้าของ วัตถุประสงค์ ผู้ได้รับผลกระทบ ผู้ให้บริการ ประเภทข้อมูล ความเสี่ยง และรอบทบทวน</p></div></div>
 <div class="panel panel-flush table-scroll">{% if rows %}<table class="table-clean"><thead><tr><th>ระบบ</th><th>เจ้าของ / หน่วยงาน</th><th>ผู้ให้บริการ / โมเดล</th><th>ข้อมูล</th><th>ความเสี่ยง</th><th>ทบทวนครั้งถัดไป</th><th>หลักฐานการปฏิบัติ</th></tr></thead><tbody>

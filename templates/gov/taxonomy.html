@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}Taxonomy {{ pack.title }} · EI-GDA{% endblock %}{% block page_title %}Domain Taxonomy{% endblock %}
+{% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}Taxonomy {{ pack.title }} · EI-DA{% endblock %}{% block page_title %}Domain Taxonomy{% endblock %}
 {% block breadcrumb %}{{ ui.crumbs([('Domains', url_for('gov.domains')), (pack.title, url_for('gov.domain_detail', slug=slug)), ('Taxonomy', None)]) }}{% endblock %}
 {% block content %}<div class="gov" id="taxApp" data-api="{{ url_for('gov.taxonomy_api', slug=slug) }}">
 <div class="page-head"><div><h1>Taxonomy: {{ pack.title_th }}</h1><p class="lead-text">Domain → องค์กร → ภารกิจ → Use Case → มิติ → Control → กฎหมาย หลักฐาน และเกณฑ์</p></div>

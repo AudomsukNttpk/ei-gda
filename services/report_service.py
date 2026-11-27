@@ -37,7 +37,7 @@ def generate_system_report(path, report_data):
     y = A4[1] - 40
     filenames = report_data.get('filenames') or [report_data.get('filename','-')]
     y = _draw_lines(c, [
-        'Ei-GDA Governance & Digital Assurance Report',
+        'EI-DA Governance & Digital Assurance Report',
         f"Source documents: {len(filenames)}",
         *[f"  - {x}" for x in filenames[:20]],
         f"Test Suite: {report_data.get('template_name','-')}",

@@ -6,7 +6,7 @@ from datetime import datetime
 from extensions import db
 from models import (ApplicabilityDecision, DocumentCheck, DocumentFile, DomainAssessment, DomainFinding, EvidenceMapping,
                     RegulatoryReference, Standard, Template)
-from services.applicability import build_context, resolve_control, resolve_critical, resolve_reference
+from services.applicability import build_context, derive_classification, resolve_control, resolve_critical, resolve_reference
 from services.domain_catalog import CORE_SUITES, get_pack
 from services.domain_rubric import (NOT_APPLICABLE, REVIEWED, SCORING_VERSION, compliance_status, score_finding, summarize)
 from services import model_gate
@@ -165,6 +165,11 @@ def current_config(assessment):
 def freeze(assessment):
     config = build_configuration(assessment.domain_slug, json_loads(assessment.profile_json, default={}), decisions_for(assessment), pinned_packs(assessment))
     config['criteria'] = _criteria_meta(assessment)
+    if not assessment.data_classification:
+        pack = _pack_source(pinned_packs(assessment))(assessment.domain_slug)
+        derived = derive_classification((pack or {}).get('data_categories', []), (config.get('profile') or {}).get('data_categories'))
+        if derived:
+            assessment.data_classification = derived
     payload = json_dumps(config)
     assessment.config_snapshot_json = payload
     assessment.snapshot_hash = hashlib.sha256(payload.encode('utf-8')).hexdigest()
@@ -190,6 +195,8 @@ def ensure_check(assessment, config=None):
         db.session.add(check)
         db.session.flush()
         assessment.check_id = check.id
+    if assessment.data_classification:
+        check.data_classification = assessment.data_classification
     check.organization_id = assessment.organization_id
     profile = config.get('profile') or {}
     check.domain_subdomain = (config.get('labels') or {}).get(profile.get('org_type'))

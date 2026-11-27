@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
     open: {
       title: 'Open · เอกสารเปิดเผยได้',
       icon: '<i class="bi bi-globe2"></i>',
-      description: 'เอกสารที่ไม่มีข้อมูลลับหรือข้อมูลอ่อนไหว โดย Ei-GDA จะส่งข้อความและหลักฐานไปยัง Gemini API ของ Google และใช้ Knowledge Graph',
+      description: 'เอกสารที่ไม่มีข้อมูลลับหรือข้อมูลอ่อนไหว โดย EI-DA จะส่งข้อความและหลักฐานไปยัง Gemini API ของ Google และใช้ Knowledge Graph',
       examples: ['นโยบาย AI ที่เผยแพร่สาธารณะ', 'คู่มือ/แนวปฏิบัติที่เผยแพร่บนเว็บไซต์องค์กร', 'รายงานวิจัยหรือรายงานประจำปีที่เปิดเผยต่อสาธารณะ', 'เอกสารมาตรฐานหรือเอกสารประชาสัมพันธ์ทั่วไป'],
       route: '<strong>Processing route:</strong> Gemini API + Knowledge Graph'
     },

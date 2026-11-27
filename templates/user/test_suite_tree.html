@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Test Suite Tree · Ei-GDA{% endblock %}
+{% block title %}Test Suite Tree · EI-DA{% endblock %}
 {% block page_title %}Test Suite Tree{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/suite-tree.css') }}">{% endblock %}
 {% block content %}
@@ -15,7 +15,7 @@
 <p class="small text-secondary">Domains ในหน้านี้จัดตามหมวดของ items ภายในแต่ละ reference · แสดงชุดและรายการที่เปิดใช้งาน ตามลำดับที่ Admin กำหนด</p>
 <div id="suiteTreeStatus" class="small text-secondary mb-3" role="status" aria-live="polite">{{ suite_tree|length }} Test Suites</div>
 <div id="suiteTree" class="suite-tree">
-  <div class="tree-root"><span class="tree-root-icon"><i class="bi bi-diagram-3"></i></span><div><strong>Ei-GDA</strong><small>Governance & Digital Assurance</small></div><span class="tree-badge">{{ suite_tree|length }} suites</span></div>
+  <div class="tree-root"><span class="tree-root-icon"><i class="bi bi-diagram-3"></i></span><div><strong>EI-DA</strong><small>Governance & Digital Assurance</small></div><span class="tree-badge">{{ suite_tree|length }} suites</span></div>
   <div class="tree-trunk">
   {% for branch in suite_tree %}
     <details class="tree-node tree-suite" data-level="suite" data-suite-id="{{ branch.suite.id }}">
