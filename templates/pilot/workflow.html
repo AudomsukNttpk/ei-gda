@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% import 'pilot/_ui.html' as pui with context %}
-{% block title %}ส่งงานและติดตาม · EI-GDA{% endblock %}{% block page_title %}ส่งงานและติดตาม{% endblock %}
+{% block title %}ส่งงานและติดตาม · EI-DA{% endblock %}{% block page_title %}ส่งงานและติดตาม{% endblock %}
 {% block breadcrumb %}{{ ui.crumbs([('รอบประเมิน', url_for('pilot.rounds')), (a.name, None)]) }}{% endblock %}
 {% block content %}{% set can = perms %}{% set st = a.workflow_status or 'draft' %}
 <div class="gov wf-page">

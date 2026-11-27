@@ -1,4 +1,4 @@
-{% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}{{ pack.title }} · EI-GDA{% endblock %}{% block page_title %}{{ pack.title }}{% endblock %}
+{% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% block title %}{{ pack.title }} · EI-DA{% endblock %}{% block page_title %}{{ pack.title }}{% endblock %}
 {% block breadcrumb %}{{ ui.crumbs([('Domains', url_for('gov.domains')), (pack.title, None)]) }}{% endblock %}
 {% block content %}<div class="gov fluid-page">
 <div class="page-head"><div class="d-flex gap-2"><span class="domain-card p-0 border-0" style="--accent:{{ pack.accent }}"><span class="ic"><i class="bi {{ pack.icon }}"></i></span></span><div><h1>{{ pack.title_th }}</h1><p class="lead-text">{{ pack.summary_th }}</p></div></div>

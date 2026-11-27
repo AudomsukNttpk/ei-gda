@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% import 'pilot/_ui.html' as pui with context %}
-{% block title %}คิวทบทวนของกรรมการ · EI-GDA{% endblock %}{% block page_title %}คิวทบทวนของกรรมการ{% endblock %}
+{% block title %}คิวทบทวนของกรรมการ · EI-DA{% endblock %}{% block page_title %}คิวทบทวนของกรรมการ{% endblock %}
 {% block content %}<div class="gov">{{ pui.demo_notice(demo_mode) }}
 <div class="page-head"><div><h1>คิวทบทวนของกรรมการ</h1><p class="lead-text">งานที่ได้รับมอบหมาย ประเด็นที่ยังเปิด หลักฐานใหม่ และประวัติการทบทวนของคุณ</p></div></div>
 {% set active = rows|selectattr('assignment.is_active')|list %}{% set ended = rows|rejectattr('assignment.is_active')|list %}

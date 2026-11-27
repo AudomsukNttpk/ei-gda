@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Test Suite Explorer · Ei-GDA{% endblock %}
+{% block title %}Test Suite Explorer · EI-DA{% endblock %}
 {% block page_title %}Test Suite Explorer{% endblock %}
 {% block content %}
 <section class="explorer-hero mb-4">
@@ -13,7 +13,7 @@
 
 <div class="suite-switcher card mb-4"><div class="card-body">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
-    <div><div class="section-title">{{ suites|length }} Ei-GDA Test Suites</div><div class="section-subtitle">เลือก Suite เพื่อสำรวจ Cross-framework map</div></div>
+    <div><div class="section-title">{{ suites|length }} EI-DA Test Suites</div><div class="section-subtitle">เลือก Suite เพื่อสำรวจ Cross-framework map</div></div>
     <div class="d-flex gap-2 flex-wrap"><a href="{{ url_for('test_suite_tree') }}" class="btn btn-outline-primary"><i class="bi bi-diagram-3 me-1"></i>Tree view</a>{% if selected_suite and session.get('role') == 'user' %}<a href="{{ url_for('dashboard') }}#tnagfTemplateSelect" class="btn btn-primary"><i class="bi bi-play-circle me-1"></i>Start assessment</a>{% endif %}</div>
   </div>
   <div class="suite-pill-grid">
@@ -57,8 +57,8 @@
 <section id="references" class="explorer-section mb-4">
   <div class="alert alert-info small">
     <strong>Public-source readiness catalog</strong> · ตรวจสอบแหล่งข้อมูล {{ catalog_checked_on }}<br>
-    Items ที่ระบุ Public-scope readiness เป็นคำถามเตรียมประเมินที่ Ei-GDA เรียบเรียงจากขอบเขตสาธารณะของ ISO/IEC ไม่ใช่ข้อความข้อกำหนดหรือรายการตรวจรับรองฉบับเต็ม
-    ตัวอย่างหลักฐานเป็นคำแนะนำของ Ei-GDA โปรดเลือกเฉพาะมาตรฐานที่ตรงกับระบบและบทบาทองค์กร ส่วนฉบับร่างใช้เตรียมความพร้อมเท่านั้น
+    Items ที่ระบุ Public-scope readiness เป็นคำถามเตรียมประเมินที่ EI-DA เรียบเรียงจากขอบเขตสาธารณะของ ISO/IEC ไม่ใช่ข้อความข้อกำหนดหรือรายการตรวจรับรองฉบับเต็ม
+    ตัวอย่างหลักฐานเป็นคำแนะนำของ EI-DA โปรดเลือกเฉพาะมาตรฐานที่ตรงกับระบบและบทบาทองค์กร ส่วนฉบับร่างใช้เตรียมความพร้อมเท่านั้น
   </div>
   <div class="d-flex justify-content-between align-items-end gap-2 mb-3"><div><span class="eyebrow">REFERENCE LAYER</span><h3 class="mb-1">Standards, Laws & Guidelines</h3><p class="text-secondary mb-0">ปีประกาศ สถานะ แหล่งที่มา และจำนวน Assessment Items ที่เชื่อมกับ Suite นี้</p></div><span class="data-chip">{{ standards|length }} sources</span></div>
   {% for group in reference_groups %}

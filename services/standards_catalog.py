@@ -26,7 +26,7 @@ def item_metadata():
 def standard_fields(row):
     description = (
         row['scope_summary'] + '\n' + row['applicability'] + '\n'
-        'Ei-GDA readiness questions derived from public scope; not ISO clauses or certification criteria. '
+        'EI-DA readiness questions derived from public scope; not ISO clauses or certification criteria. '
         'Evidence examples are suggestions. Source checked: ' + row['checked_on']
     )
     return {**{key: row[key] for key in (

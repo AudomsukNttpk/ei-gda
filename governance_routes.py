@@ -12,7 +12,7 @@ from flask import Blueprint, Response, abort, current_app, flash, jsonify, redir
 from extensions import db
 from models import (ApplicabilityDecision, AuditLog, CommitteeAssignment, DocumentCheck, DocumentFile, DomainAssessment, DomainControl,
                     DomainFinding, EvidenceMapping, EvidenceRequirement, RegulatoryReference, Standard, SubmissionRevision, TaxonomyNode, Template, User)
-from services.applicability import IMPACT_ORDER, category_sensitivity
+from services.applicability import IMPACT_ORDER, category_sensitivity, derive_classification
 from services.domain_catalog import CORE_SUITES, covered_org_types, get_pack, layer_packs, list_groups, list_profiles, taxonomy_payload
 from services.domain_kg import build_assessment_graph, finding_trace
 from services.domain_orchestrator import (current_config, decisions_for, ensure_check, freeze, locate_requirements, mappings_by_requirement, recalculate,
@@ -340,6 +340,8 @@ def _step_context(assessment, number):
         context.update(impact_labels=IMPACT_LABELS, impact_order=IMPACT_ORDER, lifecycle=LIFECYCLE)
     if number in (3, 5, 6):
         context['config'] = current_config(assessment)
+    if number in (5, 6):
+        _ensure_classification(assessment, pack, profile)
     if number == 3:
         # Where each Test Suite comes from: the laws and standards behind its controls, in first-seen order.
         config = context['config']
@@ -385,6 +387,24 @@ def _step_context(assessment, number):
         context.update(active_controls=active, required_count=len(required), located_count=len([r for r in required if mapped.get(r)]),
                        file_count=DocumentFile.query.filter_by(check_id=assessment.check_id).count() if assessment.check_id else 0)
     return context
+
+
+def _ensure_classification(assessment, pack, profile):
+    """Fill data_classification from Step 2 data categories if missing (e.g. legacy drafts)."""
+    if assessment.data_classification:
+        return assessment.data_classification
+    derived = derive_classification((pack or {}).get('data_categories', []), (profile or {}).get('data_categories'))
+    if not derived:
+        return None
+    if derived == 'open' and _has_confidential_source(assessment):
+        derived = 'confidential'
+    assessment.data_classification = derived
+    if assessment.check_id:
+        check = db.session.get(DocumentCheck, assessment.check_id)
+        if check is not None:
+            check.data_classification = derived
+    db.session.commit()
+    return derived
 
 
 @bp.route('/assessments/<int:assessment_id>')
@@ -481,6 +501,15 @@ def save_step2(assessment_id):
         db.session.commit()
         flash(' · '.join(errors), 'warning')
         return redirect(url_for('gov.step', assessment_id=assessment.id, number=2))
+    derived = derive_classification(pack.get('data_categories', []), profile.get('data_categories'))
+    if derived:
+        if derived == 'open' and _has_confidential_source(assessment):
+            derived = 'confidential'
+        assessment.data_classification = derived
+        if assessment.check_id:
+            check = db.session.get(DocumentCheck, assessment.check_id)
+            if check is not None:
+                check.data_classification = derived
     assessment.current_step = max(assessment.current_step or 1, 3)
     db.session.commit()
     return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
@@ -645,11 +674,11 @@ def set_classification(assessment_id):
     value = request.form.get('data_classification', '')
     config = current_config(assessment)
     pack = get_pack(db.session, assessment.domain_slug, include_inactive=True)
-    sensitive = category_sensitivity(pack.get('data_categories', []), (config.get('profile') or {}).get('data_categories')) == 'sensitive'
+    derived = derive_classification(pack.get('data_categories', []), (config.get('profile') or {}).get('data_categories'))
     if value not in ('open', 'confidential') or request.form.get('acknowledged') != value:
         flash('กรุณาเลือกระดับเอกสารและกดรับทราบ', 'warning')
-    elif value == 'open' and sensitive:
-        flash('Assessment นี้ใช้ข้อมูลอ่อนไหว จึงต้องเป็น Confidential และใช้โมเดลภายในเท่านั้น', 'danger')
+    elif value == 'open' and derived == 'confidential':
+        flash('Assessment นี้ใช้ข้อมูลภายใน ข้อมูลส่วนบุคคล หรือข้อมูลอ่อนไหว จึงต้องเป็น Confidential และใช้โมเดลภายในเท่านั้น', 'danger')
     elif value == 'open' and _has_confidential_source(assessment):
         flash('มีหลักฐานจากงานระดับ Confidential จึงเปลี่ยนเป็น Open ไม่ได้', 'danger')
     else:
@@ -697,6 +726,7 @@ def upload_evidence(assessment_id):
     target = url_for('gov.step', assessment_id=assessment.id, number=5)
     if not assessment.config_snapshot_json:
         return redirect(url_for('gov.step', assessment_id=assessment.id, number=3))
+    _ensure_classification(assessment, get_pack(db.session, assessment.domain_slug, include_inactive=True), json_loads(assessment.profile_json, default={}))
     if not assessment.data_classification:
         flash('กรุณาเลือกระดับเอกสารก่อนอัปโหลด', 'warning')
         return redirect(target)
@@ -750,6 +780,7 @@ def reuse_evidence(assessment_id):
     assessment = get_assessment_or_403(assessment_id)
     owner_or_403(assessment)
     target = url_for('gov.step', assessment_id=assessment.id, number=5)
+    _ensure_classification(assessment, get_pack(db.session, assessment.domain_slug, include_inactive=True), json_loads(assessment.profile_json, default={}))
     if not assessment.data_classification:
         flash('กรุณาเลือกระดับเอกสารก่อน', 'warning')
         return redirect(target)
@@ -895,6 +926,7 @@ def evidence_library():
 def run(assessment_id):
     assessment = get_assessment_or_403(assessment_id)
     owner_or_403(assessment)
+    _ensure_classification(assessment, get_pack(db.session, assessment.domain_slug, include_inactive=True), json_loads(assessment.profile_json, default={}))
     if not assessment.config_snapshot_json or not assessment.data_classification:
         flash('กรุณายืนยันขอบเขตและเลือกระดับเอกสารก่อน', 'warning')
         return redirect(url_for('gov.step', assessment_id=assessment.id, number=5))

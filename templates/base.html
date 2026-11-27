@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#12213a">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230b6357'/%3E%3Cpath d='M4 8l3 3 5-6' stroke='white' stroke-width='2' fill='none'/%3E%3C/svg%3E">
-  <title>{% block title %}Ei-GDA Platform{% endblock %}</title>
+  <title>{% block title %}EI-DA Platform{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -42,7 +42,7 @@
         <span class="graph-node node-d"></span>
       </div>
       <div class="node-loader-copy">
-        <span class="node-loader-kicker">EI-GDA</span>
+        <span class="node-loader-kicker">EI-DA</span>
         <strong id="nodeLoaderTitle">กำลังโหลดข้อมูล</strong>
         <p id="nodeLoaderMessage">กรุณารอสักครู่ ระบบกำลังเตรียมข้อมูลให้คุณ</p>
         <div class="node-loader-progress"><span></span></div>
@@ -53,7 +53,7 @@
   <aside class="app-sidebar" id="appSidebar">
     <a class="brand" href="{{ url_for('home') }}">
       <span class="brand-mark"><i class="bi bi-shield-check"></i></span>
-      <span><strong>EI-GDA</strong><small>Governance Intelligence</small></span>
+      <span><strong>EI-DA</strong><small>Governance Intelligence</small></span>
     </a>
     <nav class="side-nav" aria-label="เมนูหลัก">
       {% set ep = request.endpoint or '' %}
@@ -98,7 +98,7 @@
     {% if session.get('user_id') %}
     <header class="app-topbar">
       <button class="icon-btn sidebar-toggle" type="button" aria-label="ย่อเมนู" aria-controls="appSidebar" aria-expanded="true" title="ย่อเมนู"><i class="bi bi-list" aria-hidden="true"></i></button>
-      <div class="topbar-title"><span class="eyebrow">{% block eyebrow %}{{ current_org or 'EI-GDA' }}{% endblock %}</span><strong>{% block page_title %}ภาพรวม{% endblock %}</strong></div>
+      <div class="topbar-title"><span class="eyebrow">{% block eyebrow %}{{ current_org or 'EI-DA' }}{% endblock %}</span><strong>{% block page_title %}ภาพรวม{% endblock %}</strong></div>
       <div class="topbar-actions">
         {% if demo_mode %}<span class="demo-tag demo-top" title="ข้อมูลสมมติ ไม่ใช่การรับรองจาก อว. หรือ สป.อว.">DEMO</span>{% endif %}
         {% if nav_memberships %}<form class="org-switch" method="post" action="{{ url_for('pilot.org_context') }}"><label class="visually-hidden" for="orgSwitch">หน่วยงานที่กำลังทำงาน</label><select id="orgSwitch" name="org_id" class="form-select form-select-sm" onchange="this.form.submit()">{% for oid in nav_memberships|map(attribute='organization_id')|unique %}<option value="{{ oid }}" {{ 'selected' if oid == active_org_id }}>{{ nav_orgs[oid].name if oid in nav_orgs else oid }}</option>{% endfor %}</select><input type="hidden" name="next" value="{{ request.path }}"><noscript><button class="btn btn-sm top-btn">เปลี่ยน</button></noscript></form>{% endif %}

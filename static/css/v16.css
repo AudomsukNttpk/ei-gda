@@ -534,7 +534,7 @@ details.acc .acc-body{padding:12px 16px 16px 36px;font-size:var(--fs-sm)}
 .src-row{margin:var(--sp-1) 0}
 
 /* Evidence step: summary strip, sticky side column, filterable requirement list */
-.ev-summary{margin-bottom:var(--sp-4)}
+.ev-summary{margin-bottom:var(--sp-4);grid-template-columns:repeat(2,minmax(0,1fr))}
 .ev-side{display:flex;flex-direction:column;gap:var(--sp-4)}
 .ev-side>.panel,.ev-side>details.acc{margin:0}
 @media(min-width:992px){.ev-side{position:sticky;top:var(--sp-4);max-height:calc(100vh - 2 * var(--sp-4));overflow-y:auto;scrollbar-width:thin;padding:var(--sp-1);margin:calc(-1 * var(--sp-1))}}

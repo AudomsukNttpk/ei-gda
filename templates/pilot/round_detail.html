@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% import 'gov/_macros.html' as ui %}{% import 'pilot/_ui.html' as pui with context %}
-{% block title %}{{ rnd.title }} · EI-GDA{% endblock %}{% block page_title %}จัดการรอบประเมิน{% endblock %}
+{% block title %}{{ rnd.title }} · EI-DA{% endblock %}{% block page_title %}จัดการรอบประเมิน{% endblock %}
 {% block breadcrumb %}{{ ui.crumbs([('รอบประเมิน', url_for('pilot.rounds')), (rnd.title, None)]) }}{% endblock %}
 {% block content %}<div class="gov">{{ pui.demo_notice(rnd.is_demo) }}
 <div class="page-head"><div><h1>{{ rnd.title }}</h1><p class="lead-text">{{ rnd.owner_org.name }} · {{ rnd.scope_th or 'ไม่ได้ระบุขอบเขต' }}</p></div><div class="d-flex gap-2 align-items-center flex-wrap"><span class="badge-s s-info">{{ round_labels[rnd.status] }}</span>{{ pui.criteria_badge(rnd.criteria_set) }}<a class="btn btn-sm btn-primary" href="{{ url_for('pilot.round_dashboard', round_id=rnd.id) }}">Dashboard</a></div></div>
